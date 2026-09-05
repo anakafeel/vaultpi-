@@ -1,0 +1,21 @@
+#!/bin/bash
+# Defense in depth beyond systemd ordering: confirms /mnt/vaultpi-hdd is
+# genuinely the mounted external HDD, not an empty directory that happened
+# to exist before the real mount landed. Runs before docker.service starts.
+set -e
+
+MOUNT_PATH="{{ hdd_mount_path }}"
+MARKER_DIR="3501 LABS"
+
+if ! mountpoint -q "$MOUNT_PATH"; then
+  echo "ERROR: $MOUNT_PATH is not a mount point" >&2
+  exit 1
+fi
+
+if [ ! -d "$MOUNT_PATH/$MARKER_DIR" ]; then
+  echo "ERROR: $MOUNT_PATH is mounted but missing expected content ('$MARKER_DIR') - may not be the real HDD" >&2
+  exit 1
+fi
+
+echo "OK: $MOUNT_PATH verified as the real external HDD"
+exit 0

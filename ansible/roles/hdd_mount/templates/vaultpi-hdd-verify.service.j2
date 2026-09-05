@@ -1,0 +1,14 @@
+[Unit]
+Description=Verify VaultPi external HDD is genuinely mounted before Docker starts
+DefaultDependencies=no
+Requires=mnt-vaultpi\x2dhdd.mount
+After=mnt-vaultpi\x2dhdd.mount
+Before=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/vaultpi-hdd-verify.sh
+
+[Install]
+WantedBy=multi-user.target

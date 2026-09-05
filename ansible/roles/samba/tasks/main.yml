@@ -1,4 +1,11 @@
 ---
+# Samba serves directly out of the HDD mount (see docker-compose.yml's
+# /mnt/vaultpi-hdd:/share volume). It has no HDD-readiness logic of its
+# own - it's protected transitively by the hdd_mount role's docker.service
+# override (RequiresMountsFor + a content-verification service), which
+# delays Docker's own startup until the real HDD is confirmed mounted, so
+# by the time this container starts on boot the HDD is guaranteed present.
+
 - name: Ensure ~/vaultpi/samba exists
   ansible.builtin.file:
     path: "{{ vaultpi_dir }}/samba"

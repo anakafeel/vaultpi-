@@ -12,3 +12,51 @@
     fstype: ntfs-3g
     opts: "{{ hdd_mount_opts }}"
     state: present
+
+# Fixes a real boot-time race condition: USB enumeration/spin-up for the
+# external HDD can be slower than Docker's own startup, so Docker (and
+# Samba on top of it) could previously start before the mount landed,
+# serving an empty directory instead of failing loudly. Two layers:
+# 1) RequiresMountsFor on docker.service - ordering, via a drop-in below.
+# 2) A content-verification service Docker also requires - defense in
+#    depth beyond "is something mounted" to "is this actually the HDD".
+- name: Deploy the HDD content-verification script
+  ansible.builtin.template:
+    src: vaultpi-hdd-verify.sh.j2
+    dest: /usr/local/bin/vaultpi-hdd-verify.sh
+    owner: root
+    mode: "0755"
+
+- name: Deploy the HDD verification systemd service
+  ansible.builtin.template:
+    src: vaultpi-hdd-verify.service.j2
+    dest: /etc/systemd/system/vaultpi-hdd-verify.service
+    owner: root
+    mode: "0644"
+  register: verify_service_file
+
+- name: Ensure /etc/systemd/system/docker.service.d exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    owner: root
+    mode: "0755"
+
+- name: Deploy the docker.service override requiring the HDD mount and verification
+  ansible.builtin.template:
+    src: docker-service-override.conf.j2
+    dest: /etc/systemd/system/docker.service.d/override.conf
+    owner: root
+    mode: "0644"
+  register: docker_override_file
+
+- name: Reload systemd if the verify service or docker override changed
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: verify_service_file.changed or docker_override_file.changed
+
+- name: Ensure the HDD verification service is enabled and started
+  ansible.builtin.systemd:
+    name: vaultpi-hdd-verify.service
+    enabled: true
+    state: started

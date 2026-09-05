@@ -1,0 +1,10 @@
+[Unit]
+# Delay Docker's own startup until the HDD mount is confirmed ready - fixes
+# a real race condition where Docker (and Samba on top of it) could start
+# before USB enumeration/spin-up finishes, serving an empty directory
+# instead of failing loudly.
+RequiresMountsFor={{ hdd_mount_path }}
+# Defense in depth beyond mount ordering alone: also requires the content
+# verification service to have passed.
+Requires=vaultpi-hdd-verify.service
+After=vaultpi-hdd-verify.service
