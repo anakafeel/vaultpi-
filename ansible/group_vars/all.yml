@@ -16,3 +16,7 @@ hdd_mount_opts: "defaults,nofail,uid=1000,gid=1000"
 # Repo root, relative to this ansible/ directory, so roles can source
 # pi-configs/ and scripts/ without duplicating their content.
 repo_root: "{{ playbook_dir }}/.."
+
+# Confirmed via `ip addr` on the Pi (wlan0: 192.168.2.141/24), not assumed.
+lan_subnet: "192.168.2.0/24"
+n8n_port: 5678

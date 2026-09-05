@@ -17,3 +17,39 @@
   community.docker.docker_compose_v2:
     project_src: "{{ vaultpi_home }}/n8n"
     state: present
+
+# n8n's compose now binds 0.0.0.0:5678 instead of a literal IP (resilient
+# to DHCP changes), so LAN-only access is enforced here instead, at the
+# firewall. Default incoming policy is deliberately left at "allow" - this
+# Pi has no firewall today, and switching to default-deny would silently
+# break every other exposed service (Samba, Grafana, Portainer, etc.) that
+# was never audited for this. Only port 5678 gets a targeted restriction.
+- name: Ensure ufw is installed
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+    update_cache: false
+
+- name: Ensure ufw's default incoming policy stays allow (don't disrupt other exposed services)
+  community.general.ufw:
+    direction: incoming
+    policy: allow
+
+- name: Allow n8n's port from the LAN subnet only
+  community.general.ufw:
+    rule: allow
+    direction: in
+    from_ip: "{{ lan_subnet }}"
+    to_port: "{{ n8n_port }}"
+    proto: tcp
+
+- name: Deny n8n's port from everywhere else
+  community.general.ufw:
+    rule: deny
+    direction: in
+    to_port: "{{ n8n_port }}"
+    proto: tcp
+
+- name: Ensure ufw is enabled
+  community.general.ufw:
+    state: enabled

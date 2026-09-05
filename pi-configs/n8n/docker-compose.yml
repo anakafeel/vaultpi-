@@ -4,7 +4,11 @@ services:
     container_name: n8n
     restart: unless-stopped
     ports:
-      - "192.168.2.141:5678:5678"
+      # Bound to all interfaces rather than the Pi's literal DHCP-assigned
+      # IP - a bind to a specific IP fails outright if that IP ever changes
+      # (DHCP lease renewal, router reset). LAN-only access is enforced at
+      # the firewall (ufw) instead - see ansible/roles/n8n.
+      - "5678:5678"
     environment:
       - N8N_HOST=192.168.2.141
       - N8N_PORT=5678
