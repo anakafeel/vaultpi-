@@ -1,0 +1,18 @@
+---
+# avahi-daemon was found installed but disabled/inactive on this Pi - mDNS
+# (anakafeel-pi.local) never actually worked, which is why SSH access and
+# n8n's config ended up hardcoded to a literal IP in the first place. This
+# is the real fix: a running mDNS responder means the Pi stays reachable by
+# hostname across DHCP renewals and even a full router replacement, with no
+# router-specific admin UI configuration needed anywhere.
+- name: Ensure avahi-daemon is installed
+  ansible.builtin.apt:
+    name: avahi-daemon
+    state: present
+    update_cache: false
+
+- name: Ensure avahi-daemon is enabled and running
+  ansible.builtin.systemd:
+    name: avahi-daemon
+    enabled: true
+    state: started

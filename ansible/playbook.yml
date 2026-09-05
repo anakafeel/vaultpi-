@@ -5,6 +5,7 @@
   vars_files:
     - vault_vars.yml
   roles:
+    - avahi
     - docker
     - hdd_mount
     - n8n

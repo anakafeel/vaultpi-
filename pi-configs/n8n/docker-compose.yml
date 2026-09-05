@@ -10,11 +10,14 @@ services:
       # the firewall (ufw) instead - see ansible/roles/n8n.
       - "5678:5678"
     environment:
-      - N8N_HOST=192.168.2.141
+      # mDNS hostname instead of the literal IP - anakafeel-pi.local
+      # resolves via avahi-daemon (ansible/roles/avahi) and survives DHCP
+      # renewals and router changes, unlike a hardcoded IP.
+      - N8N_HOST=anakafeel-pi.local
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
       - N8N_SECURE_COOKIE=false
-      - WEBHOOK_URL=http://192.168.2.141:5678/
+      - WEBHOOK_URL=http://anakafeel-pi.local:5678/
       - GENERIC_TIMEZONE=UTC
       - TZ=UTC
     volumes:
