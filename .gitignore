@@ -1,0 +1,11 @@
+*.log
+.env
+.discord_webhook
+rclone.conf
+*.pem
+*.key
+backfill_checkpoint.txt
+duplicate_report.txt
+config-backup/
+__pycache__/
+*.pyc
