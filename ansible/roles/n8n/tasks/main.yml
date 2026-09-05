@@ -1,0 +1,19 @@
+---
+- name: Ensure ~/n8n exists
+  ansible.builtin.file:
+    path: "{{ vaultpi_home }}/n8n"
+    state: directory
+    owner: "{{ vaultpi_user }}"
+    mode: "0775"
+
+- name: Deploy n8n's docker-compose.yml (source of truth is pi-configs/n8n/)
+  ansible.builtin.copy:
+    src: "{{ repo_root }}/pi-configs/n8n/docker-compose.yml"
+    dest: "{{ vaultpi_home }}/n8n/docker-compose.yml"
+    owner: "{{ vaultpi_user }}"
+    mode: "0644"
+
+- name: Ensure n8n is up
+  community.docker.docker_compose_v2:
+    project_src: "{{ vaultpi_home }}/n8n"
+    state: present

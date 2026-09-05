@@ -1,0 +1,14 @@
+---
+# state=present (not "mounted") deliberately: this only ensures the fstab
+# line is correct. It does NOT attempt to mount/remount anything, since a
+# live remount to change ntfs-3g uid/gid options could disrupt Samba, which
+# has this path bind-mounted and is actively serving. The filesystem is
+# already mounted and working; this task only codifies that reality in
+# fstab, it doesn't touch the live mount.
+- name: Ensure the external HDD's fstab entry matches live reality
+  ansible.posix.mount:
+    path: "{{ hdd_mount_path }}"
+    src: "UUID={{ hdd_uuid }}"
+    fstype: ntfs-3g
+    opts: "{{ hdd_mount_opts }}"
+    state: present

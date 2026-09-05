@@ -1,0 +1,15 @@
+---
+- name: Configure VaultPi Raspberry Pi
+  hosts: vaultpi
+  become: true
+  vars_files:
+    - vault_vars.yml
+  roles:
+    - docker
+    - hdd_mount
+    - n8n
+    - watchtower
+    - samba
+    - monitoring
+    - scripts
+    - cron_jobs

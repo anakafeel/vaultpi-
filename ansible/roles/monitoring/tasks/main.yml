@@ -1,0 +1,49 @@
+---
+- name: Ensure ~/vaultpi/monitoring exists
+  ansible.builtin.file:
+    path: "{{ vaultpi_dir }}/monitoring"
+    state: directory
+    owner: "{{ vaultpi_user }}"
+    mode: "0775"
+
+- name: Deploy monitoring's docker-compose.yml (source of truth is pi-configs/monitoring/)
+  ansible.builtin.copy:
+    src: "{{ repo_root }}/pi-configs/monitoring/docker-compose.yml"
+    dest: "{{ vaultpi_dir }}/monitoring/docker-compose.yml"
+    owner: "{{ vaultpi_user }}"
+    mode: "0644"
+
+- name: Deploy Prometheus and Grafana provisioning config (whole tree, source of truth is pi-configs/monitoring/)
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ vaultpi_dir }}/monitoring/"
+    owner: "{{ vaultpi_user }}"
+    mode: preserve
+  loop:
+    - "{{ repo_root }}/pi-configs/monitoring/prometheus"
+    - "{{ repo_root }}/pi-configs/monitoring/grafana"
+
+- name: Template monitoring's .env (Grafana's CloudWatch IAM credentials, from vault)
+  ansible.builtin.template:
+    src: .env.j2
+    dest: "{{ vaultpi_dir }}/monitoring/.env"
+    owner: "{{ vaultpi_user }}"
+    mode: "0600"
+
+# Prometheus/Grafana's growing data must live on the HDD, never the SD
+# card - the whole point of Milestone 6's setup. World-writable to match
+# the HDD mount's existing permissive mode (it's ntfs-3g with uid/gid
+# mount options, not real per-file POSIX permissions).
+- name: Ensure Prometheus and Grafana data directories exist on the HDD
+  ansible.builtin.file:
+    path: "{{ hdd_mount_path }}/{{ item }}"
+    state: directory
+    mode: "0777"
+  loop:
+    - prometheus-data
+    - grafana-data
+
+- name: Ensure the monitoring stack is up
+  community.docker.docker_compose_v2:
+    project_src: "{{ vaultpi_dir }}/monitoring"
+    state: present

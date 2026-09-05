@@ -1,0 +1,22 @@
+---
+# Only the two weekly jobs are managed here. The pre-existing @reboot
+# entries in this user's crontab are left alone - out of scope for this
+# retrofit, and ansible.builtin.cron only ever touches entries tagged with
+# a matching "name" comment, so it can't disturb them either way.
+- name: Ensure the Sunday 3am docker prune job is scheduled
+  ansible.builtin.cron:
+    name: "vaultpi docker prune and notify"
+    weekday: "0"
+    hour: "3"
+    minute: "0"
+    job: "{{ vaultpi_dir }}/prune_and_notify.sh"
+    user: "{{ vaultpi_user }}"
+
+- name: Ensure the Sunday 4am config backup job is scheduled
+  ansible.builtin.cron:
+    name: "vaultpi config backup"
+    weekday: "0"
+    hour: "4"
+    minute: "0"
+    job: "{{ vaultpi_dir }}/backup_pi_config.sh"
+    user: "{{ vaultpi_user }}"

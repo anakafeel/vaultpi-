@@ -16,3 +16,11 @@ terraform/.terraform/
 terraform/*.tfstate*
 terraform/*.tfvars
 terraform/lambda_function_payload.zip
+
+# Ansible - vault_vars.yml itself IS committed (encrypted via ansible-vault,
+# safe to commit), but the vault PASSWORD that decrypts it never is - it
+# lives outside the repo entirely at ~/.vaultpi-vault-pass. These are just
+# defensive/generated-artifact ignores, not where the real secret is kept.
+ansible/*.retry
+ansible/vault_vars.yml.dec
+ansible/*.vault-pass*

@@ -1,0 +1,77 @@
+---
+# Matches how Docker CE is actually installed on this Pi (verified via dpkg -l):
+# official Docker apt repo, not the Debian docker.io package.
+#
+# update_cache is deliberately false: this Pi has an unrelated third-party
+# apt source (Cloudflare's pkg.cloudflareclient.com, for the cloudflared
+# tunnel client) whose signing key fails current SHA1-deprecation policy,
+# which fails a full `apt-get update` outright. That's a pre-existing,
+# out-of-scope problem with a working, unrelated service - not something to
+# fix here. All the packages this role needs are already installed, so
+# state=present doesn't require a fresh index anyway.
+- name: Ensure prerequisite packages are present
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    update_cache: false
+
+- name: Ensure /etc/apt/keyrings exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Download Docker's GPG key (armored)
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/debian/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    # Pinned checksum (matches what's actually on this Pi right now) so this
+    # task compares against the local file instead of re-downloading and
+    # reporting "changed" on every single run - without it, get_url has no
+    # way to know the download was a no-op.
+    checksum: sha256:1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570
+    mode: "0644"
+
+- name: Dearmor Docker's GPG key into a keyring apt can use
+  ansible.builtin.command:
+    cmd: gpg --dearmor -o /etc/apt/keyrings/docker.gpg /etc/apt/keyrings/docker.asc
+    creates: /etc/apt/keyrings/docker.gpg
+
+# NOTE: hardcoded to "bookworm" rather than templated from
+# ansible_distribution_release. This host actually reports as Kali
+# (kali-rolling) in /etc/os-release, not Debian - but the existing, working
+# Docker apt source explicitly targets bookworm packages, which is what's
+# really installed. Templating the release here would silently break the
+# repo URL by pointing it at a nonexistent "kali-rolling" Docker repo.
+- name: Add Docker's apt repository (matches the real bookworm-targeted source already in use)
+  ansible.builtin.apt_repository:
+    repo: "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable"
+    filename: docker
+    state: present
+
+# update_cache: false here too, same reason as above.
+- name: Install Docker CE and Compose plugin
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-ce-rootless-extras
+      - docker-compose-plugin
+    state: present
+    update_cache: false
+
+- name: Ensure the docker service is enabled and running
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+
+- name: Ensure the pi user is in the docker group
+  ansible.builtin.user:
+    name: "{{ vaultpi_user }}"
+    groups: docker
+    append: true

@@ -1,0 +1,26 @@
+---
+- name: Ensure ~/watchtower exists
+  ansible.builtin.file:
+    path: "{{ vaultpi_home }}/watchtower"
+    state: directory
+    owner: "{{ vaultpi_user }}"
+    mode: "0775"
+
+- name: Deploy watchtower's docker-compose.yml (source of truth is pi-configs/watchtower/)
+  ansible.builtin.copy:
+    src: "{{ repo_root }}/pi-configs/watchtower/docker-compose.yml"
+    dest: "{{ vaultpi_home }}/watchtower/docker-compose.yml"
+    owner: "{{ vaultpi_user }}"
+    mode: "0644"
+
+- name: Template watchtower's .env (notification URL, from vault)
+  ansible.builtin.template:
+    src: .env.j2
+    dest: "{{ vaultpi_home }}/watchtower/.env"
+    owner: "{{ vaultpi_user }}"
+    mode: "0600"
+
+- name: Ensure watchtower is up
+  community.docker.docker_compose_v2:
+    project_src: "{{ vaultpi_home }}/watchtower"
+    state: present

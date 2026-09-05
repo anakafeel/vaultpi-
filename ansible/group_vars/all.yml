@@ -1,0 +1,18 @@
+---
+vaultpi_user: anakafeel
+vaultpi_home: /home/anakafeel
+vaultpi_dir: /home/anakafeel/vaultpi
+
+# HDD mount - matches the fstab entry that is ACTUALLY in effect on the live
+# mount (uid=1000/gid=1000, the "gpio" group). This retrofit found the file
+# had TWO conflicting lines for this mountpoint: this one (live, working)
+# and a second, never-applied one using gid=1002 instead. That stale
+# duplicate has since been cleaned up so exactly one line remains, matching
+# what was already true at runtime.
+hdd_mount_path: /mnt/vaultpi-hdd
+hdd_uuid: "2ABC82B9BC827ED7"
+hdd_mount_opts: "defaults,nofail,uid=1000,gid=1000"
+
+# Repo root, relative to this ansible/ directory, so roles can source
+# pi-configs/ and scripts/ without duplicating their content.
+repo_root: "{{ playbook_dir }}/.."

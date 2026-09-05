@@ -1,0 +1,22 @@
+# Copy this to vault_vars.yml, fill in real values, then encrypt it:
+#   cp vault_vars.yml.example vault_vars.yml
+#   ansible-vault encrypt vault_vars.yml
+#
+# vault_vars.yml itself is safe to commit ONLY once encrypted - never commit
+# it in plaintext. The vault password lives outside git entirely (e.g.
+# ~/.vaultpi-vault-pass), referenced via `ansible-playbook --vault-password-file`
+# or the ANSIBLE_VAULT_PASSWORD_FILE env var.
+
+vault_samba_user: changeme
+vault_samba_password: changeme
+
+# The Discord webhook URL AWS's console/Discord gives you looks like:
+#   https://discord.com/api/webhooks/<id>/<token>
+# Split into id/token here since both prune_and_notify.sh (raw https URL)
+# and Watchtower (shoutrrr's discord://token@id scheme) need the same
+# secret in two different formats - one source of truth, two templates.
+vault_discord_webhook_id: "000000000000000000"
+vault_discord_webhook_token: "changeme"
+
+vault_grafana_cloudwatch_access_key_id: "AKIAEXAMPLE00000000"
+vault_grafana_cloudwatch_secret_access_key: "changeme"

@@ -1,0 +1,39 @@
+---
+- name: Ensure ~/vaultpi and ~/vaultpi/config exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ vaultpi_user }}"
+    mode: "0775"
+  loop:
+    - "{{ vaultpi_dir }}"
+    - "{{ vaultpi_dir }}/config"
+
+- name: Deploy VaultPi scripts (source of truth is scripts/), matching each script's real deployed mode
+  ansible.builtin.copy:
+    src: "{{ repo_root }}/scripts/{{ item.name }}"
+    dest: "{{ vaultpi_dir }}/{{ item.name }}"
+    owner: "{{ vaultpi_user }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { name: sync_photos.sh, mode: "0775" }
+    - { name: backfill_embeddings.py, mode: "0664" }
+    - { name: find_duplicates.py, mode: "0644" }
+    - { name: search_photos.py, mode: "0644" }
+    - { name: backup_pi_config.sh, mode: "0755" }
+    # Restrictive on purpose - reads the Discord webhook file.
+    - { name: prune_and_notify.sh, mode: "0700" }
+
+- name: Deploy the photo source folder list (source of truth is config/)
+  ansible.builtin.copy:
+    src: "{{ repo_root }}/config/photo_sources.txt"
+    dest: "{{ vaultpi_dir }}/config/photo_sources.txt"
+    owner: "{{ vaultpi_user }}"
+    mode: "0664"
+
+- name: Template the Discord webhook file used by prune_and_notify.sh (from vault)
+  ansible.builtin.template:
+    src: discord_webhook.j2
+    dest: "{{ vaultpi_dir }}/.discord_webhook"
+    owner: "{{ vaultpi_user }}"
+    mode: "0600"
