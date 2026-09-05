@@ -1,0 +1,268 @@
+{
+  "id": null,
+  "uid": "vaultpi-overview",
+  "title": "VaultPi Overview",
+  "tags": ["vaultpi"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "CPU Usage %",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "min": 0, "max": 100 },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "RAM Used / Available",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
+          "legendFormat": "Used"
+        },
+        {
+          "refId": "B",
+          "expr": "node_memory_MemAvailable_bytes",
+          "legendFormat": "Available"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "gauge",
+      "title": "Disk Usage % - SD Card (/)",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 - (node_filesystem_avail_bytes{mountpoint=\"/\",fstype!=\"tmpfs\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!=\"tmpfs\"} * 100)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "gauge",
+      "title": "Disk Usage % - HDD (/mnt/vaultpi-hdd)",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 - (node_filesystem_avail_bytes{mountpoint=\"/mnt/vaultpi-hdd\"} / node_filesystem_size_bytes{mountpoint=\"/mnt/vaultpi-hdd\"} * 100)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Per-Container CPU Usage %",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{name!=\"\"}[5m])) by (name) * 100",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percent" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Per-Container RAM Usage",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(container_memory_usage_bytes{name!=\"\"}) by (name)",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "AWS / CloudWatch",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 1 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Lambda Invocations (24h) - VaultPi-ProcessUpload",
+      "gridPos": { "x": 0, "y": 17, "w": 6, "h": 8 },
+      "datasource": { "type": "cloudwatch", "uid": "cloudwatch" },
+      "targets": [
+        {
+          "refId": "A",
+          "namespace": "AWS/Lambda",
+          "metricName": "Invocations",
+          "dimensions": { "FunctionName": "VaultPi-ProcessUpload" },
+          "statistic": "Sum",
+          "region": "us-east-1",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Lambda Errors (24h) - VaultPi-ProcessUpload",
+      "gridPos": { "x": 6, "y": 17, "w": 6, "h": 8 },
+      "datasource": { "type": "cloudwatch", "uid": "cloudwatch" },
+      "targets": [
+        {
+          "refId": "A",
+          "namespace": "AWS/Lambda",
+          "metricName": "Errors",
+          "dimensions": { "FunctionName": "VaultPi-ProcessUpload" },
+          "statistic": "Sum",
+          "region": "us-east-1",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "DynamoDB Consumed Capacity - VaultPi-FileMetadata",
+      "gridPos": { "x": 12, "y": 17, "w": 12, "h": 8 },
+      "datasource": { "type": "cloudwatch", "uid": "cloudwatch" },
+      "targets": [
+        {
+          "refId": "A",
+          "namespace": "AWS/DynamoDB",
+          "metricName": "ConsumedReadCapacityUnits",
+          "dimensions": { "TableName": "VaultPi-FileMetadata" },
+          "statistic": "Sum",
+          "region": "us-east-1",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true
+        },
+        {
+          "refId": "B",
+          "namespace": "AWS/DynamoDB",
+          "metricName": "ConsumedWriteCapacityUnits",
+          "dimensions": { "TableName": "VaultPi-FileMetadata" },
+          "statistic": "Sum",
+          "region": "us-east-1",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "S3 Bucket Size Trend - saim-vaultpi-files",
+      "gridPos": { "x": 0, "y": 25, "w": 24, "h": 8 },
+      "datasource": { "type": "cloudwatch", "uid": "cloudwatch" },
+      "targets": [
+        {
+          "refId": "A",
+          "namespace": "AWS/S3",
+          "metricName": "BucketSizeBytes",
+          "dimensions": { "BucketName": "saim-vaultpi-files", "StorageType": "StandardStorage" },
+          "statistic": "Average",
+          "region": "us-east-1",
+          "queryMode": "Metrics",
+          "metricQueryType": 0,
+          "metricEditorMode": 0,
+          "matchExact": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" },
+        "overrides": []
+      },
+      "description": "S3 daily storage metrics have a ~24-48h publishing lag on a new bucket. Panel is correctly configured but may show no data until AWS publishes the first datapoint."
+    }
+  ]
+}
