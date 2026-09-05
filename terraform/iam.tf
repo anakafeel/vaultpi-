@@ -19,10 +19,6 @@ resource "aws_iam_role" "vaultpi_lambda_role" {
   })
 }
 
-# NOTE: the console has AmazonDynamoDBFullAccess AND AmazonDynamoDBFullAccess_v2
-# both attached simultaneously - a real discrepancy found during import, not
-# something intentionally configured this way. Left as-is to match reality;
-# not applying a fix here since that would modify a live, in-use role.
 resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
   role       = aws_iam_role.vaultpi_lambda_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
@@ -36,11 +32,6 @@ resource "aws_iam_role_policy_attachment" "s3_read_only" {
 resource "aws_iam_role_policy_attachment" "dynamodb_full_access" {
   role       = aws_iam_role.vaultpi_lambda_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
-}
-
-resource "aws_iam_role_policy_attachment" "dynamodb_full_access_v2" {
-  role       = aws_iam_role.vaultpi_lambda_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess_v2"
 }
 
 resource "aws_iam_role_policy_attachment" "rekognition_full_access" {
