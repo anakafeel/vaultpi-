@@ -1,0 +1,13 @@
+services:
+  watchtower:
+    image: ghcr.io/nicholas-fedor/watchtower:1.22.0
+    container_name: watchtower
+    restart: always
+    command: --interval 21600
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    env_file:
+      - .env
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_INCLUDE_STOPPED=true

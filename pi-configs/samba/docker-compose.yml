@@ -1,0 +1,19 @@
+services:
+
+  samba:
+
+    image: dperson/samba
+
+    container_name: vaultpi-samba
+
+    restart: unless-stopped
+
+    ports:
+
+      - "445:445"
+
+    volumes:
+
+      - /mnt/vaultpi-hdd:/share
+
+    command: -u "${SAMBA_USER};${SAMBA_PASSWORD}" -s "vaultpi;/share;yes;no;no;${SAMBA_USER}"
