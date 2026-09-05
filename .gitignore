@@ -9,3 +9,11 @@ duplicate_report.txt
 config-backup/
 __pycache__/
 *.pyc
+
+# Terraform - local state can contain sensitive data (ARNs, resource attrs);
+# not using a remote backend yet, so keep it out of git as a minimum baseline
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/*.tfvars
+terraform/lambda_function_payload.zip
