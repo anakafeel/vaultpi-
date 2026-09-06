@@ -1,0 +1,79 @@
+---
+# NOTE: `tailscale up` (the interactive browser auth step) is deliberately
+# NOT automated here. It requires a human to visit a login URL and approve
+# the device - there is no unattended way to do this without a pre-shared
+# auth key, which this project has chosen not to use. On a fresh Pi, after
+# this role runs, someone must SSH in and run:
+#   sudo tailscale up --hostname=anakafeel-pi
+# then visit the URL it prints and approve the device. This is a one-time
+# manual step per fresh Pi, not something re-run on every deploy.
+
+- name: Ensure /usr/share/keyrings exists
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Download Tailscale's GPG key (armored)
+  ansible.builtin.get_url:
+    url: https://pkgs.tailscale.com/stable/debian/bullseye.noarmor.gpg
+    dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    # Pinned checksum (matches what's actually on this Pi right now), same
+    # rationale as the docker role's pinned key: avoids re-downloading and
+    # reporting "changed" on every run when the download is a no-op.
+    checksum: sha256:3e03dacf222698c60b8e2f990b809ca1b3e104de127767864284e6c228f1fb39
+    mode: "0644"
+
+- name: Add Tailscale's apt repository list file
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/tailscale.list
+    content: |
+      # Tailscale packages for debian bullseye
+      deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/debian bullseye main
+    mode: "0644"
+  register: tailscale_apt_list
+
+# Scoped to just this one list file - this Pi has an unrelated, pre-existing
+# broken apt source (Cloudflare's pkg.cloudflareclient.com, see the docker
+# role's comment) whose signature fails current SHA1-deprecation policy,
+# which fails a full `apt-get update` outright. A normal `apt: update_cache:
+# true` would hit that same failure, so update only Tailscale's own list
+# instead - matches how this was actually verified working, live, on this Pi.
+- name: Fetch Tailscale's package index (scoped update, avoids the unrelated broken cloudflare repo)
+  ansible.builtin.command:
+    cmd: >-
+      apt-get update
+      -o Dir::Etc::sourcelist=sources.list.d/tailscale.list
+      -o Dir::Etc::sourceparts=-
+      -o APT::Get::List-Cleanup=0
+  when: tailscale_apt_list.changed
+  changed_when: false
+
+- name: Install Tailscale
+  ansible.builtin.apt:
+    name: tailscale
+    state: present
+    update_cache: false
+
+- name: Ensure tailscaled is enabled and running
+  ansible.builtin.systemd:
+    name: tailscaled
+    enabled: true
+    state: started
+
+- name: Check current Tailscale auth status (informational only)
+  ansible.builtin.command:
+    cmd: tailscale status --json
+  register: tailscale_status
+  changed_when: false
+  failed_when: false
+
+- name: Warn if this Pi is not yet authenticated to a tailnet
+  ansible.builtin.debug:
+    msg: >-
+      Tailscale is installed but not yet authenticated. Run
+      `sudo tailscale up --hostname=anakafeel-pi` and visit the login URL
+      it prints - this is a manual, one-time step per fresh Pi.
+  when: >-
+    tailscale_status.rc != 0 or
+    '"BackendState":"Running"' not in tailscale_status.stdout

@@ -6,6 +6,7 @@
     - vault_vars.yml
   roles:
     - avahi
+    - tailscale
     # hdd_mount runs before docker: it mounts the dedicated docker-root SD
     # card that docker's daemon.json (deployed by the docker role) points
     # at, so the mount must already be live before Docker's first start -
@@ -13,6 +14,9 @@
     # filesystem instead of the intended mount.
     - hdd_mount
     - docker
+    # immich runs right after docker: it needs both the HDD (hdd_mount) and
+    # the docker compose plugin (docker) already in place.
+    - immich
     - n8n
     - watchtower
     - samba

@@ -1,0 +1,232 @@
+---
+- name: Ensure ~/vaultpi/immich exists
+  ansible.builtin.file:
+    path: "{{ vaultpi_dir }}/immich"
+    state: directory
+    owner: "{{ vaultpi_user }}"
+    mode: "0775"
+
+- name: Deploy immich's docker-compose.yml (source of truth is pi-configs/immich/)
+  ansible.builtin.copy:
+    src: "{{ repo_root }}/pi-configs/immich/docker-compose.yml"
+    dest: "{{ vaultpi_dir }}/immich/docker-compose.yml"
+    owner: "{{ vaultpi_user }}"
+    mode: "0664"
+
+- name: Template immich's .env (DB password from vault, paths from group_vars)
+  ansible.builtin.template:
+    src: .env.j2
+    dest: "{{ vaultpi_dir }}/immich/.env"
+    owner: "{{ vaultpi_user }}"
+    mode: "0600"
+
+# Postgres does not live directly on the NTFS HDD (ntfs-3g/FUSE can't give
+# it real POSIX filesystem semantics - the same underlying issue that
+# forced the docker-root migration off NTFS). Instead it gets a dedicated
+# ext4 filesystem, loop-mounted from an image file that itself lives on the
+# HDD, so the data is still HDD-resident but Postgres sees a real
+# filesystem underneath it.
+- name: Check whether the Postgres loopback image already exists
+  ansible.builtin.stat:
+    path: "{{ immich_postgres_image_path }}"
+  register: immich_pg_image
+
+# fallocate + mkfs only run for a brand new image - never touch one that
+# already exists, since that would destroy the live Immich database.
+- name: Create the Postgres loopback image file
+  ansible.builtin.command:
+    cmd: "fallocate -l {{ immich_postgres_image_size }} {{ immich_postgres_image_path }}"
+  when: not immich_pg_image.stat.exists
+
+- name: Format the new Postgres loopback image as ext4
+  ansible.builtin.command:
+    cmd: "mkfs.ext4 -L immich-postgres {{ immich_postgres_image_path }}"
+  when: not immich_pg_image.stat.exists
+
+- name: Ensure the Postgres loopback mount point exists
+  ansible.builtin.file:
+    path: "{{ immich_postgres_mount_path }}"
+    state: directory
+    mode: "0755"
+
+- name: Ensure the Postgres loopback image is mounted and in fstab
+  ansible.posix.mount:
+    path: "{{ immich_postgres_mount_path }}"
+    src: "{{ immich_postgres_image_path }}"
+    fstype: ext4
+    opts: "loop,defaults,nofail,x-systemd.requires-mounts-for={{ hdd_mount_path }}"
+    state: mounted
+
+- name: Ensure immich is up
+  community.docker.docker_compose_v2:
+    project_src: "{{ vaultpi_dir }}/immich"
+    state: present
+
+- name: Wait for the Immich API to respond
+  ansible.builtin.uri:
+    url: "http://localhost:{{ immich_port }}/api/server/ping"
+    status_code: 200
+  register: immich_ping
+  until: immich_ping.status == 200
+  retries: 30
+  delay: 2
+
+# Idempotent: Immich returns 201 on first creation, 400 ("The server
+# already has an admin") on every call after that - both are expected and
+# non-fatal, only the first counts as a change.
+- name: Bootstrap the Immich admin account (idempotent - no-ops after first run)
+  ansible.builtin.uri:
+    url: "http://localhost:{{ immich_port }}/api/auth/admin-sign-up"
+    method: POST
+    body_format: json
+    body:
+      email: "{{ vault_immich_admin_email }}"
+      password: "{{ vault_immich_admin_password }}"
+      name: "{{ vaultpi_user }}"
+    status_code: [201, 400]
+  register: immich_signup
+  changed_when: immich_signup.status == 201
+
+- name: Log in to Immich as admin (needed for the config/library calls below)
+  ansible.builtin.uri:
+    url: "http://localhost:{{ immich_port }}/api/auth/login"
+    method: POST
+    body_format: json
+    body:
+      email: "{{ vault_immich_admin_email }}"
+      password: "{{ vault_immich_admin_password }}"
+    status_code: 201
+  register: immich_login
+  changed_when: false
+  no_log: true
+
+- name: Fetch current Immich system config
+  ansible.builtin.uri:
+    url: "http://localhost:{{ immich_port }}/api/system-config"
+    headers:
+      Authorization: "Bearer {{ immich_login.json.accessToken }}"
+    status_code: 200
+  register: immich_config
+  changed_when: false
+
+# VaultPi has its own separate Bedrock-based embedding/search/dedup
+# pipeline (see scripts/backfill_embeddings.py, find_duplicates.py,
+# search_photos.py) - Immich's own CLIP smart search, facial recognition,
+# duplicate detection and OCR would be redundant, and immich-machine-learning
+# isn't even deployed (see docker-compose.yml's header comment) so these
+# would just queue jobs for a service that doesn't exist. Only PUT when
+# something is actually still enabled, so re-runs are a no-op.
+- name: Compute Immich config with AI features disabled
+  ansible.builtin.set_fact:
+    immich_config_ai_disabled: "{{ immich_config.json | combine({'machineLearning': immich_ml_disabled}, recursive=true) }}"
+  vars:
+    immich_ml_disabled:
+      enabled: false
+      clip:
+        enabled: false
+      facialRecognition:
+        enabled: false
+      duplicateDetection:
+        enabled: false
+      ocr:
+        enabled: false
+  when: immich_config.json.machineLearning.enabled
+
+- name: Disable Immich's built-in AI features
+  ansible.builtin.uri:
+    url: "http://localhost:{{ immich_port }}/api/system-config"
+    method: PUT
+    headers:
+      Authorization: "Bearer {{ immich_login.json.accessToken }}"
+    body_format: json
+    body: "{{ immich_config_ai_disabled }}"
+    status_code: 200
+  when: immich_config.json.machineLearning.enabled
+
+- name: Fetch existing Immich external libraries
+  ansible.builtin.uri:
+    url: "http://localhost:{{ immich_port }}/api/libraries"
+    headers:
+      Authorization: "Bearer {{ immich_login.json.accessToken }}"
+    status_code: 200
+  register: immich_libraries
+  changed_when: false
+
+# Read-only browsing of existing photo folders already on the HDD, in
+# place - never copied into Immich's own managed storage. Deliberately
+# NOT sourced from config/photo_sources.txt: that manifest also includes
+# Immich's own upload folder (for the unrelated S3 backup sync), which
+# must never become an External Library of itself.
+- name: Create missing external libraries
+  ansible.builtin.uri:
+    url: "http://localhost:{{ immich_port }}/api/libraries"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ immich_login.json.accessToken }}"
+    body_format: json
+    body:
+      ownerId: "{{ immich_login.json.userId }}"
+      name: "{{ item }}"
+      importPaths:
+        - "/external/{{ item }}"
+    status_code: 201
+  register: immich_library_created
+  loop: "{{ immich_external_library_folders }}"
+  when: item not in (immich_libraries.json | map(attribute='name') | list)
+
+# Only scan libraries this run just created - re-scanning on every play run
+# would both break idempotency (always "changed") and needlessly re-walk
+# ~18k files each time. New files dropped into existing library folders
+# will get picked up by Immich's own periodic library watcher, not this.
+- name: Scan newly created external libraries
+  ansible.builtin.uri:
+    url: "http://localhost:{{ immich_port }}/api/libraries/{{ item.json.id }}/scan"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ immich_login.json.accessToken }}"
+    status_code: 204
+  loop: "{{ immich_library_created.results | selectattr('changed') | list }}"
+  loop_control:
+    label: "{{ item.json.name }}"
+
+# Same LAN + Tailscale pattern as n8n's ufw rule (see roles/n8n/tasks/main.yml),
+# but also allowing the Tailscale subnet - Immich must be reachable
+# remotely via Tailscale, and explicitly NOT via the Cloudflare Tunnel or
+# an open router port.
+- name: Ensure ufw is installed
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+    update_cache: false
+
+- name: Ensure ufw's default incoming policy stays allow (don't disrupt other exposed services)
+  community.general.ufw:
+    direction: incoming
+    policy: allow
+
+- name: Allow Immich's port from the LAN subnet
+  community.general.ufw:
+    rule: allow
+    direction: in
+    from_ip: "{{ lan_subnet }}"
+    to_port: "{{ immich_port }}"
+    proto: tcp
+
+- name: Allow Immich's port from the Tailscale subnet
+  community.general.ufw:
+    rule: allow
+    direction: in
+    from_ip: "{{ tailscale_subnet }}"
+    to_port: "{{ immich_port }}"
+    proto: tcp
+
+- name: Deny Immich's port from everywhere else
+  community.general.ufw:
+    rule: deny
+    direction: in
+    to_port: "{{ immich_port }}"
+    proto: tcp
+
+- name: Ensure ufw is enabled
+  community.general.ufw:
+    state: enabled

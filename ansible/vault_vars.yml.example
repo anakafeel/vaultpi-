@@ -20,3 +20,14 @@ vault_discord_webhook_token: "changeme"
 
 vault_grafana_cloudwatch_access_key_id: "AKIAEXAMPLE00000000"
 vault_grafana_cloudwatch_secret_access_key: "changeme"
+
+# Postgres role password Immich's database was actually initialized with.
+# Changing this after the fact does NOT rotate it - Postgres only applies
+# POSTGRES_PASSWORD on first init of an empty data directory, so this must
+# match the live database, not just the .env file.
+vault_immich_db_password: "changeme"
+
+# First-run admin account, created idempotently by the immich role via
+# Immich's own admin-sign-up API.
+vault_immich_admin_email: "changeme@example.com"
+vault_immich_admin_password: "changeme"
