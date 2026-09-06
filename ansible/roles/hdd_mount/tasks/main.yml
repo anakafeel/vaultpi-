@@ -13,6 +13,23 @@
     opts: "{{ hdd_mount_opts }}"
     state: present
 
+# Unlike the HDD mount above, this one is safe to actively mount (not just
+# record in fstab): it's a dedicated, single-purpose ext4 card with nothing
+# else bind-mounted on top of it, so there's no live-service disruption risk.
+- name: Ensure the docker-root mount point exists
+  ansible.builtin.file:
+    path: "{{ docker_root_mount_path }}"
+    state: directory
+    mode: "0755"
+
+- name: Ensure the docker-root SD card is mounted and in fstab
+  ansible.posix.mount:
+    path: "{{ docker_root_mount_path }}"
+    src: "UUID={{ docker_root_uuid }}"
+    fstype: ext4
+    opts: "{{ docker_root_mount_opts }}"
+    state: mounted
+
 # Fixes a real boot-time race condition: USB enumeration/spin-up for the
 # external HDD can be slower than Docker's own startup, so Docker (and
 # Samba on top of it) could previously start before the mount landed,

@@ -13,6 +13,14 @@ hdd_mount_path: /mnt/vaultpi-hdd
 hdd_uuid: "2ABC82B9BC827ED7"
 hdd_mount_opts: "defaults,nofail,uid=1000,gid=1000"
 
+# Dedicated ext4 SD card for Docker's data-root. Moved off the boot SD card
+# (which was down to ~530MB free) and off the HDD (NTFS via ntfs-3g lacks
+# proper d_type support, which overlay2 requires for its hardlink/whiteout
+# layer storage - a migration attempt there was abandoned mid-copy).
+docker_root_mount_path: /mnt/docker-root
+docker_root_uuid: "f7676da5-5b7e-4dde-9293-6be1b5883271"
+docker_root_mount_opts: "defaults,nofail"
+
 # Repo root, relative to this ansible/ directory, so roles can source
 # pi-configs/ and scripts/ without duplicating their content.
 repo_root: "{{ playbook_dir }}/.."

@@ -6,8 +6,13 @@
     - vault_vars.yml
   roles:
     - avahi
-    - docker
+    # hdd_mount runs before docker: it mounts the dedicated docker-root SD
+    # card that docker's daemon.json (deployed by the docker role) points
+    # at, so the mount must already be live before Docker's first start -
+    # otherwise that first start would write into the boot SD card's root
+    # filesystem instead of the intended mount.
     - hdd_mount
+    - docker
     - n8n
     - watchtower
     - samba

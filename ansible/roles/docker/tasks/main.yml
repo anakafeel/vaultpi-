@@ -64,6 +64,18 @@
     state: present
     update_cache: false
 
+# Placed before the daemon starts (or restarts): data-root points at the
+# dedicated docker-root SD card (mounted by the hdd_mount role, which runs
+# before this role), not the boot SD card's root filesystem - that's what
+# caused the storage crisis this fixes.
+- name: Deploy Docker daemon.json with the dedicated docker-root data-root
+  ansible.builtin.template:
+    src: daemon.json.j2
+    dest: /etc/docker/daemon.json
+    owner: root
+    mode: "0644"
+  notify: restart docker
+
 - name: Ensure the docker service is enabled and running
   ansible.builtin.systemd:
     name: docker

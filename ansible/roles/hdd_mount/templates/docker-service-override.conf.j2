@@ -3,7 +3,13 @@
 # a real race condition where Docker (and Samba on top of it) could start
 # before USB enumeration/spin-up finishes, serving an empty directory
 # instead of failing loudly.
-RequiresMountsFor={{ hdd_mount_path }}
+#
+# Also requires the dedicated docker-root mount: Docker's actual data-root
+# lives there now (ext4 SD card, since NTFS/FUSE lacks the d_type support
+# overlay2 needs), so Docker must not start before that mount is ready
+# either - even more critical than the HDD mount, since Docker cannot
+# function at all without it.
+RequiresMountsFor={{ hdd_mount_path }} {{ docker_root_mount_path }}
 # Defense in depth beyond mount ordering alone: also requires the content
 # verification service to have passed.
 Requires=vaultpi-hdd-verify.service
