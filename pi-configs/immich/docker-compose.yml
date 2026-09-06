@@ -1,0 +1,81 @@
+#
+# Adapted from the official Immich docker-compose.yml
+# (https://github.com/immich-app/immich/releases/latest/download/docker-compose.yml)
+# for VaultPi's constraints:
+#   - All data (postgres, redis, upload library) bind-mounted under
+#     /mnt/vaultpi-hdd/immich/ - nothing but this file touches the SD card.
+#   - immich-machine-learning is deliberately omitted entirely (no CLIP smart
+#     search / facial recognition container) - VaultPi already has a working
+#     Bedrock-based embedding/dedup pipeline; running both would double the
+#     resource cost for redundant capability. Smart Search and Facial
+#     Recognition are also switched off in Immich's own admin settings so
+#     the server never queues jobs for a service that isn't running.
+#   - External Library mounts (read-only) for each existing photo folder
+#     from ~/vaultpi/config/photo_sources.txt, so Immich can browse the
+#     existing ~14,800 photos in place without copying them into its own
+#     managed storage. If photo_sources.txt ever changes, these mounts need
+#     updating by hand to match - they are not auto-generated.
+#   - Port 2283 is published on all interfaces (Docker's own mapping can't
+#     easily avoid this) but restricted at the host firewall (ufw) to the
+#     LAN subnet and the Tailscale subnet only - same pattern as n8n.
+
+name: immich
+
+services:
+  immich-server:
+    container_name: immich_server
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    volumes:
+      - ${UPLOAD_LOCATION}:/data
+      - /etc/localtime:/etc/localtime:ro
+      # Read-only external libraries - existing photo folders, browsed in
+      # place, never copied into Immich's own storage.
+      - /mnt/vaultpi-hdd/OneDrive/Pictures:/external/OneDrive/Pictures:ro
+      - "/mnt/vaultpi-hdd/Saim iphone DCIM (2020-2021):/external/Saim iphone DCIM (2020-2021):ro"
+      - "/mnt/vaultpi-hdd/Saim iphone DCIM (2021-2023 march):/external/Saim iphone DCIM (2021-2023 march):ro"
+      - "/mnt/vaultpi-hdd/Saim Phone DCIM (2026 MAY):/external/Saim Phone DCIM (2026 MAY):ro"
+      - /mnt/vaultpi-hdd/note 8 dcim:/external/note 8 dcim:ro
+      - "/mnt/vaultpi-hdd/SAIM PERSONAL FILES/My Pictures:/external/SAIM PERSONAL FILES/My Pictures:ro"
+      - /mnt/vaultpi-hdd/My Pictures:/external/My Pictures:ro
+      - /mnt/vaultpi-hdd/camera:/external/camera:ro
+      - /mnt/vaultpi-hdd/DSLR:/external/DSLR:ro
+      - /mnt/vaultpi-hdd/zzz:/external/zzz:ro
+      - /mnt/vaultpi-hdd/gitworkshop pics:/external/gitworkshop pics:ro
+      - "/mnt/vaultpi-hdd/IRUM MARRIAGE PARTY-2002:/external/IRUM MARRIAGE PARTY-2002:ro"
+    env_file:
+      - .env
+    ports:
+      - '2283:2283'
+    depends_on:
+      - redis
+      - database
+    restart: always
+    healthcheck:
+      disable: false
+
+  redis:
+    container_name: immich_redis
+    image: docker.io/valkey/valkey:9@sha256:8e8d64b405ce18f41b8e5ee20aa4687a8ed0022d1298f2ce31cdcf3a76e09411
+    volumes:
+      - ${REDIS_DATA_LOCATION}:/data
+    healthcheck:
+      test: redis-cli ping || exit 1
+    restart: always
+
+  database:
+    container_name: immich_postgres
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_DB: ${DB_DATABASE_NAME}
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+      # Uncommented: the database genuinely lives on a mechanical external
+      # HDD, not an SSD, per this project's storage architecture.
+      DB_STORAGE_TYPE: 'HDD'
+    volumes:
+      - ${DB_DATA_LOCATION}:/var/lib/postgresql/data
+    shm_size: 128mb
+    restart: always
+    healthcheck:
+      disable: false
