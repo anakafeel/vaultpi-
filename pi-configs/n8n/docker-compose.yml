@@ -37,6 +37,18 @@ services:
       # owned/readable only by the anakafeel user, who also controls n8n.
       - /home/anakafeel/vaultpi:/home/anakafeel/vaultpi:ro
       - /home/anakafeel/.aws:/home/node/.aws:ro
+      # Narrow rw mount layered on top of the ro one above (same path, more
+      # specific - Docker/the kernel resolve this as an override for that
+      # subtree). Only quarantine_file.py's audit log needs to be written
+      # from inside the container; the scripts themselves stay read-only.
+      - /home/anakafeel/vaultpi/logs:/home/anakafeel/vaultpi/logs:rw
+      # Needed for the Quarantine Duplicate webhook: moving a duplicate
+      # into _quarantine/ requires write (and delete-on-source) access to
+      # the HDD, which no existing mount granted. Same uid=1000/gid=1000
+      # trust boundary as the host already has (see hdd_mount_opts in
+      # group_vars/all.yml) - the container's node user matches the host's
+      # anakafeel uid.
+      - /mnt/vaultpi-hdd:/mnt/vaultpi-hdd:rw
 
 volumes:
   n8n_data:

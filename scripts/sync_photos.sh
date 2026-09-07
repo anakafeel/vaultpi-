@@ -9,6 +9,7 @@ echo "=== Sync started: $(date) ===" >> "$LOG"
 
 while IFS= read -r folder; do
   [ -z "$folder" ] && continue
+  [[ "$folder" == \#* ]] && continue
   SRC="$HDD_ROOT/$folder"
   DEST="$S3_REMOTE/$folder"
   if [ -d "$SRC" ]; then

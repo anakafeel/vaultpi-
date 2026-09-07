@@ -137,17 +137,33 @@
     body: "{{ lookup('file', repo_root + '/pi-configs/n8n/workflows/' + item + '.json') | from_json }}"
     status_code: 200
   register: n8n_workflow_import
+  # ansible.builtin.uri only ever sets changed=True when writing to a
+  # `dest` file - it never does that here, so without this override the
+  # "Activate" task below (which filters on changed) silently never fires.
+  # Found live: quarantine-duplicate got created but stayed inactive after
+  # a real playbook run. Safe to hardcode true - this task only executes
+  # at all when the `when:` above already determined the workflow was
+  # missing and needs creating.
+  changed_when: true
   loop:
     - photo-search
     - duplicate-review
+    - quarantine-duplicate
   when: item | replace('-', ' ') | title not in (n8n_existing_workflows.json.data | map(attribute='name') | list)
 
 - name: Activate newly imported n8n workflows
   ansible.builtin.uri:
-    url: "http://localhost:{{ n8n_port }}/rest/workflows/{{ item.json.data.id }}/activate"
-    method: POST
+    # This n8n version (1.106.3) 404s on the old dedicated
+    # POST .../activate endpoint - found live while testing the
+    # quarantine-duplicate rollout. PATCH {active: true} is what the n8n
+    # editor UI itself calls and is confirmed working on this version.
+    url: "http://localhost:{{ n8n_port }}/rest/workflows/{{ item.json.data.id }}"
+    method: PATCH
     headers:
       Cookie: "n8n-auth={{ n8n_login.cookies['n8n-auth'] }}"
+    body_format: json
+    body:
+      active: true
     status_code: 200
   loop: "{{ n8n_workflow_import.results | selectattr('changed') | list }}"
   loop_control:

@@ -9,6 +9,17 @@
     - "{{ vaultpi_dir }}"
     - "{{ vaultpi_dir }}/config"
 
+# Destination for the n8n "Quarantine Duplicate" webhook - matches the
+# 0777 permissions already in effect on every other top-level folder on
+# this ntfs-3g HDD mount (default_permissions,allow_other), so the n8n
+# container's write into it behaves the same as every existing folder.
+- name: Ensure the HDD quarantine folder exists
+  ansible.builtin.file:
+    path: "{{ hdd_mount_path }}/_quarantine"
+    state: directory
+    owner: "{{ vaultpi_user }}"
+    mode: "0777"
+
 - name: Deploy VaultPi scripts (source of truth is scripts/), matching each script's real deployed mode
   ansible.builtin.copy:
     src: "{{ repo_root }}/scripts/{{ item.name }}"
@@ -20,6 +31,7 @@
     - { name: backfill_embeddings.py, mode: "0664" }
     - { name: find_duplicates.py, mode: "0644" }
     - { name: search_photos.py, mode: "0644" }
+    - { name: quarantine_file.py, mode: "0644" }
     - { name: backup_pi_config.sh, mode: "0755" }
     # Restrictive on purpose - reads the Discord webhook file.
     - { name: prune_and_notify.sh, mode: "0700" }

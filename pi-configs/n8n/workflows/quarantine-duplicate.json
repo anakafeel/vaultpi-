@@ -1,0 +1,128 @@
+{
+  "name": "Quarantine Duplicate",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "quarantine-duplicate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f1a2b3c4-1111-4b22-9c33-d44e55f66a77",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        0
+      ],
+      "webhookId": "1f6d3a5c-9b7e-4a2d-8c1f-3e5b7d9a1c2e"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = ($json.query && $json.query.path) ? $json.query.path : '';\nconst path = Array.isArray(raw) ? String(raw[0] || '') : String(raw);\n\nif (!path.trim()) {\n  return [{ json: { valid: false, error: 'missing path query param', path } }];\n}\n\nconst safeArg = \"'\" + path.replace(/'/g, \"'\\\\''\") + \"'\";\nreturn [{ json: { valid: true, path, safeArg } }];"
+      },
+      "id": "a2b3c4d5-2222-4c33-8d44-e55f66a77b88",
+      "name": "Validate Path",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "executeOnce": true,
+        "command": "={{ $json.valid ? ('python3 /home/anakafeel/vaultpi/quarantine_file.py ' + $json.safeArg) : 'true' }}"
+      },
+      "id": "b3c4d5e6-3333-4d44-9e55-f66a77b88c99",
+      "name": "Run Quarantine",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        -120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const validation = $('Validate Path').item.json;\n\nif (!validation.valid) {\n  return [{ json: { ok: false, error: validation.error, rel_path: validation.path } }];\n}\n\nconst stdout = ($json.stdout || '').trim();\ntry {\n  const parsed = JSON.parse(stdout);\n  return [{ json: parsed }];\n} catch (e) {\n  return [{ json: { ok: false, error: 'unexpected script output', raw: stdout } }];\n}"
+      },
+      "id": "c4d5e6f7-4444-4e55-af66-a77b88c99d00",
+      "name": "Parse Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "d5e6f7a8-5555-4f66-b077-a88c99d00e11",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        360,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Path": {
+      "main": [
+        [
+          {
+            "node": "Run Quarantine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Quarantine": {
+      "main": [
+        [
+          {
+            "node": "Parse Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Result": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false
+}

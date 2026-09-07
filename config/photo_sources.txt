@@ -11,3 +11,9 @@ zzz
 gitworkshop pics
 IRUM MARRIAGE PARTY-2002
 immich/library/library
+
+# _quarantine/ holds files moved out by the n8n "Quarantine Duplicate"
+# webhook - intentionally excluded so quarantined duplicates never get
+# re-synced to S3. Not in the list above either, but this line documents
+# the exclusion explicitly (belt and suspenders).
+#_quarantine
