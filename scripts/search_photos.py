@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys
+import argparse
 import json
 import time
 import boto3
@@ -60,19 +60,27 @@ def scan_table():
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python3 search_photos.py \"<text query>\"")
-        sys.exit(1)
-    query = sys.argv[1]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("query", help="text query")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print results as a JSON array instead of human-readable text",
+    )
+    args = parser.parse_args()
+    query = args.query
 
-    print(f"Query: {query!r}")
+    if not args.json:
+        print(f"Query: {query!r}")
     t0 = time.time()
     query_vec = embed_query(query)
-    print(f"Query embedded in {time.time() - t0:.2f}s")
+    if not args.json:
+        print(f"Query embedded in {time.time() - t0:.2f}s")
 
     t0 = time.time()
     keys, vectors = scan_table()
-    print(f"Scanned {len(keys)} stored embeddings in {time.time() - t0:.1f}s")
+    if not args.json:
+        print(f"Scanned {len(keys)} stored embeddings in {time.time() - t0:.1f}s")
 
     matrix = np.array(vectors, dtype=np.float32)
 
@@ -85,9 +93,16 @@ def main():
 
     top_idx = np.argsort(-sims)[:TOP_K]
 
-    print(f"\nTop {TOP_K} matches:")
-    for rank, idx in enumerate(top_idx, 1):
-        print(f"  {rank:2d}. {sims[idx]:.4f}  {keys[idx]}")
+    if args.json:
+        results = [
+            {"s3_key": keys[idx], "score": round(float(sims[idx]), 4)}
+            for idx in top_idx
+        ]
+        print(json.dumps(results))
+    else:
+        print(f"\nTop {TOP_K} matches:")
+        for rank, idx in enumerate(top_idx, 1):
+            print(f"  {rank:2d}. {sims[idx]:.4f}  {keys[idx]}")
 
 
 if __name__ == "__main__":

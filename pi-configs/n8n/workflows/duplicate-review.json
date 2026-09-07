@@ -1,0 +1,186 @@
+{
+  "name": "Duplicate Review",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "duplicate-review",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "9a6322cc-8531-4682-89ee-1bb1345444d6",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        0
+      ],
+      "webhookId": "108b5c3a-3972-4e44-8d1c-0831e259c950"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = ($json.query && $json.query.offset) ? $json.query.offset : '0';\nlet offset = parseInt(raw, 10);\nif (!Number.isFinite(offset) || offset < 0) offset = 0;\nconst pageSize = 10;\nreturn [{ json: { offset, pageSize, startLine: offset + 1, endLine: offset + pageSize } }];"
+      },
+      "id": "17b80d9d-c753-4a18-871d-4af98811b88f",
+      "name": "Prepare Offset",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "executeOnce": true,
+        "command": "=sed -n '{{ $json.startLine }},{{ $json.endLine }}p' /home/anakafeel/vaultpi/duplicate_report.txt"
+      },
+      "id": "eac2001e-244c-43e0-abfd-f9aee5f51788",
+      "name": "Read Page",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        -120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const offset = $('Prepare Offset').item.json.offset;\nconst pageSize = $('Prepare Offset').item.json.pageSize;\nconst raw = $json.stdout || '';\nconst lines = raw.split('\\n').filter((l) => l.trim().length > 0);\n\nconst pairs = [];\nfor (const line of lines) {\n  const idx = line.indexOf('<->');\n  if (idx === -1) continue;\n  const left = line.slice(0, idx).trim();\n  const key_b = line.slice(idx + 3).trim();\n  const sp = left.indexOf(' ');\n  if (sp === -1) continue;\n  const score = left.slice(0, sp).trim();\n  const key_a = left.slice(sp + 1).trim();\n  pairs.push({ score, key_a, key_b });\n}\n\nconst keys = [];\nfor (const p of pairs) {\n  keys.push(p.key_a);\n  keys.push(p.key_b);\n}\nconst keysJson = JSON.stringify(keys);\nconst safeKeysJson = \"'\" + keysJson.replace(/'/g, \"'\\\\''\") + \"'\";\n\nreturn [{ json: { offset, pageSize, pairs, safeKeysJson } }];"
+      },
+      "id": "81eb5bd2-2f83-4bb4-b801-7a680bc17288",
+      "name": "Parse Pairs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "executeOnce": true,
+        "command": "=echo {{ $json.safeKeysJson }} | python3 /home/anakafeel/vaultpi/generate_presigned_url.py"
+      },
+      "id": "8ff7b2e9-041f-485b-800f-1ee28a8dd991",
+      "name": "Presign Both Images",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function escapeHtml(s) {\n  return String(s).replace(/[&<>\"']/g, (c) => ({\n    '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;'\n  }[c]));\n}\n\nconst offset = $('Parse Pairs').item.json.offset;\nconst pageSize = $('Parse Pairs').item.json.pageSize;\nconst pairs = $('Parse Pairs').item.json.pairs;\n\nlet urlMap = {};\ntry {\n  const flat = JSON.parse($json.stdout || '[]');\n  for (const item of flat) urlMap[item.s3_key] = item.url;\n} catch (e) {}\n\nconst rows = pairs.map((p) => `\n  <div class=\"pair\">\n    <div class=\"side\"><img src=\"${urlMap[p.key_a] || ''}\" loading=\"lazy\"><div class=\"key\">${escapeHtml(p.key_a)}</div></div>\n    <div class=\"side\"><img src=\"${urlMap[p.key_b] || ''}\" loading=\"lazy\"><div class=\"key\">${escapeHtml(p.key_b)}</div></div>\n    <div class=\"score\">score ${escapeHtml(p.score)}</div>\n  </div>`).join('');\n\nconst prevOffset = Math.max(0, offset - pageSize);\nconst nextOffset = offset + pageSize;\nconst showPrev = offset > 0;\nconst showNext = pairs.length === pageSize;\n\nconst nav = `<div class=\"nav\">\n  ${showPrev ? `<a href=\"?offset=${prevOffset}\">&larr; Previous</a>` : '<span></span>'}\n  <span>showing ${pairs.length ? offset + 1 : 0}-${offset + pairs.length}</span>\n  ${showNext ? `<a href=\"?offset=${nextOffset}\">Next &rarr;</a>` : '<span></span>'}\n</div>`;\n\nconst html = `<!doctype html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>VaultPi Duplicate Review</title>\n<style>\n  body { font-family: system-ui, sans-serif; background: #111; color: #eee; margin: 0; padding: 1rem; }\n  h2 { margin-top: 0; }\n  .nav { display: flex; justify-content: space-between; align-items: center; margin: 1rem 0; }\n  .nav a { color: #4a7; text-decoration: none; font-weight: bold; }\n  .nav span { color: #999; font-size: 0.85rem; }\n  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; background: #1a1a1a; border-radius: 8px; padding: 0.5rem; margin-bottom: 0.75rem; }\n  .side img { width: 100%; max-height: 220px; object-fit: contain; border-radius: 6px; background: #000; display: block; }\n  .key { font-size: 0.65rem; color: #999; word-break: break-all; margin-top: 0.25rem; }\n  .score { grid-column: 1 / -1; text-align: center; font-size: 0.85rem; color: #ccc; }\n</style>\n</head>\n<body>\n  <h2>Duplicate Review</h2>\n  ${nav}\n  ${rows || '<p>No pairs on this page.</p>'}\n  ${nav}\n</body>\n</html>`;\n\nreturn [{ json: { html } }];"
+      },
+      "id": "2b4c6d8e-1a3f-4c5d-9e7f-0a1b2c3d4e5f",
+      "name": "Build HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "3c5d7e9f-2b4a-4c6d-8e0f-1a2b3c4d5e6f",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        840,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Offset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Offset": {
+      "main": [
+        [
+          {
+            "node": "Read Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Page": {
+      "main": [
+        [
+          {
+            "node": "Parse Pairs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Pairs": {
+      "main": [
+        [
+          {
+            "node": "Presign Both Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Presign Both Images": {
+      "main": [
+        [
+          {
+            "node": "Build HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build HTML": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false
+}

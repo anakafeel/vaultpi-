@@ -1,6 +1,14 @@
 services:
   n8n:
-    image: n8nio/n8n:latest
+    # Built from a Dockerfile (see ./Dockerfile), not the bare n8nio/n8n
+    # image directly - it adds python3/boto3/numpy so the Photo
+    # Search/Duplicate Review workflows' Execute Command nodes can run the
+    # scripts under ~/vaultpi. The Dockerfile documents why the base image
+    # is pinned to 1.106.3, not :latest (an ARM64 SIGBUS crash on newer
+    # versions).
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: n8n
     restart: unless-stopped
     ports:
@@ -22,6 +30,13 @@ services:
       - TZ=UTC
     volumes:
       - n8n_data:/home/node/.n8n
+      # Read-only: lets Execute Command nodes run the existing photo-search
+      # scripts and read duplicate_report.txt, at the same absolute path
+      # they live at on the host, without copying/duplicating them into the
+      # image. Same trust boundary as the host already has - both are
+      # owned/readable only by the anakafeel user, who also controls n8n.
+      - /home/anakafeel/vaultpi:/home/anakafeel/vaultpi:ro
+      - /home/anakafeel/.aws:/home/node/.aws:ro
 
 volumes:
   n8n_data:

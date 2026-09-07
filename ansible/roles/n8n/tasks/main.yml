@@ -6,17 +6,21 @@
     owner: "{{ vaultpi_user }}"
     mode: "0775"
 
-- name: Deploy n8n's docker-compose.yml (source of truth is pi-configs/n8n/)
+- name: Deploy n8n's docker-compose.yml and Dockerfile (source of truth is pi-configs/n8n/)
   ansible.builtin.copy:
-    src: "{{ repo_root }}/pi-configs/n8n/docker-compose.yml"
-    dest: "{{ vaultpi_home }}/n8n/docker-compose.yml"
+    src: "{{ repo_root }}/pi-configs/n8n/{{ item }}"
+    dest: "{{ vaultpi_home }}/n8n/{{ item }}"
     owner: "{{ vaultpi_user }}"
     mode: "0644"
+  loop:
+    - docker-compose.yml
+    - Dockerfile
 
-- name: Ensure n8n is up
+- name: Ensure n8n is up (builds the custom image - see Dockerfile - if not already built)
   community.docker.docker_compose_v2:
     project_src: "{{ vaultpi_home }}/n8n"
     state: present
+    build: policy
 
 # n8n's compose now binds 0.0.0.0:5678 instead of a literal IP (resilient
 # to DHCP changes), so LAN-only access is enforced here instead, at the
@@ -35,11 +39,26 @@
     direction: incoming
     policy: allow
 
-- name: Allow n8n's port from the LAN subnet only
+- name: Allow n8n's port from the LAN subnet
   community.general.ufw:
     rule: allow
     direction: in
     from_ip: "{{ lan_subnet }}"
+    to_port: "{{ n8n_port }}"
+    proto: tcp
+
+# n8n's Photo Search / Duplicate Review webhooks need to be reachable
+# remotely via Tailscale, same as Immich (see roles/immich). Must come
+# before the deny-everywhere rule below - ufw evaluates top to bottom,
+# first match wins, so an allow rule appended AFTER a deny for the same
+# port is a silent no-op for real external traffic (found and fixed live
+# on 2026-09-07: a tailscale allow rule added out of order here left the
+# port unreachable from the tailnet despite looking present in the list).
+- name: Allow n8n's port from the Tailscale subnet
+  community.general.ufw:
+    rule: allow
+    direction: in
+    from_ip: "{{ tailscale_subnet }}"
     to_port: "{{ n8n_port }}"
     proto: tcp
 
@@ -53,3 +72,83 @@
 - name: Ensure ufw is enabled
   community.general.ufw:
     state: enabled
+
+- name: Wait for the n8n API to respond
+  ansible.builtin.uri:
+    url: "http://localhost:{{ n8n_port }}/healthz"
+    status_code: 200
+  register: n8n_health
+  until: n8n_health.status == 200
+  retries: 30
+  delay: 2
+
+# Idempotent: returns 200 the first time, and n8n itself simply won't show
+# the setup screen again on later runs (no error either way), matching the
+# immich role's admin-sign-up pattern.
+- name: Bootstrap the n8n owner account (idempotent - no-ops after first run)
+  ansible.builtin.uri:
+    url: "http://localhost:{{ n8n_port }}/rest/owner/setup"
+    method: POST
+    body_format: json
+    body:
+      email: "{{ vault_n8n_owner_email }}"
+      firstName: "{{ vaultpi_user }}"
+      lastName: "vault"
+      password: "{{ vault_n8n_owner_password }}"
+    status_code: [200, 400]
+  register: n8n_owner_setup
+  changed_when: n8n_owner_setup.status == 200
+
+- name: Log in to n8n as owner (needed for the workflow import calls below)
+  ansible.builtin.uri:
+    url: "http://localhost:{{ n8n_port }}/rest/login"
+    method: POST
+    body_format: json
+    body:
+      emailOrLdapLoginId: "{{ vault_n8n_owner_email }}"
+      password: "{{ vault_n8n_owner_password }}"
+    status_code: 200
+  register: n8n_login
+  changed_when: false
+  no_log: true
+
+- name: Fetch existing n8n workflows
+  ansible.builtin.uri:
+    url: "http://localhost:{{ n8n_port }}/rest/workflows"
+    headers:
+      Cookie: "n8n-auth={{ n8n_login.cookies['n8n-auth'] }}"
+    status_code: 200
+  register: n8n_existing_workflows
+  changed_when: false
+
+# Photo Search and Duplicate Review - read-only browsing/review UIs for the
+# existing search_photos.py and duplicate_report.txt tooling. Deliberately
+# NOT sourced dynamically from the workflows/ directory listing: importing
+# is a create-only operation here (no update-in-place), so an explicit,
+# reviewable list is safer than auto-importing whatever files happen to be
+# in that folder.
+- name: Import missing n8n workflows
+  ansible.builtin.uri:
+    url: "http://localhost:{{ n8n_port }}/rest/workflows"
+    method: POST
+    headers:
+      Cookie: "n8n-auth={{ n8n_login.cookies['n8n-auth'] }}"
+    body_format: json
+    body: "{{ lookup('file', repo_root + '/pi-configs/n8n/workflows/' + item + '.json') | from_json }}"
+    status_code: 200
+  register: n8n_workflow_import
+  loop:
+    - photo-search
+    - duplicate-review
+  when: item | replace('-', ' ') | title not in (n8n_existing_workflows.json.data | map(attribute='name') | list)
+
+- name: Activate newly imported n8n workflows
+  ansible.builtin.uri:
+    url: "http://localhost:{{ n8n_port }}/rest/workflows/{{ item.json.data.id }}/activate"
+    method: POST
+    headers:
+      Cookie: "n8n-auth={{ n8n_login.cookies['n8n-auth'] }}"
+    status_code: 200
+  loop: "{{ n8n_workflow_import.results | selectattr('changed') | list }}"
+  loop_control:
+    label: "{{ item.json.data.name }}"

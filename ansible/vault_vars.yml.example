@@ -31,3 +31,8 @@ vault_immich_db_password: "changeme"
 # Immich's own admin-sign-up API.
 vault_immich_admin_email: "changeme@example.com"
 vault_immich_admin_password: "changeme"
+
+# First-run owner account, created idempotently by the n8n role via n8n's
+# own owner-setup API.
+vault_n8n_owner_email: "changeme@example.com"
+vault_n8n_owner_password: "changeme"

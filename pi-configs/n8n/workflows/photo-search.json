@@ -1,0 +1,175 @@
+{
+  "name": "Photo Search",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "photo-search",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "7cca6b8c-be53-4d27-af61-348abba816f1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        0
+      ],
+      "webhookId": "042bccf9-85c2-4777-9196-a1f7a5fd97c7"
+    },
+    {
+      "parameters": {
+        "jsCode": "const q = ($json.query && $json.query.q) ? String($json.query.q) : '';\nconst safeQuery = \"'\" + q.replace(/'/g, \"'\\\\''\") + \"'\";\nreturn [{ json: { query: q, safeQuery, hasQuery: q.trim().length > 0 } }];"
+      },
+      "id": "a8902295-31a9-44ac-a811-dc568a232b06",
+      "name": "Prepare Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.hasQuery }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "985115b7-0b32-4cc6-bf84-e212ffd7a6c5",
+      "name": "Has Query?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        80,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "executeOnce": true,
+        "command": "=cd /home/anakafeel/vaultpi && python3 search_photos.py --json {{ $json.safeQuery }} | python3 generate_presigned_url.py"
+      },
+      "id": "f4e1a849-a384-4c1c-a64f-94b3fff7987b",
+      "name": "Search + Presign",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        320,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function escapeHtml(s) {\n  return String(s).replace(/[&<>\"']/g, (c) => ({\n    '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;'\n  }[c]));\n}\n\nconst query = $('Prepare Query').item.json.query || '';\nconst hasQuery = $('Has Query?').item.json.hasQuery;\n\nlet results = [];\nlet errorMsg = '';\nif (hasQuery) {\n  const stdout = $json.stdout || '[]';\n  try {\n    results = JSON.parse(stdout);\n  } catch (e) {\n    errorMsg = 'Search failed - no results parsed. Raw output: ' + escapeHtml(stdout).slice(0, 500);\n  }\n}\n\nconst cards = results.map((r) => `\n  <figure>\n    <img src=\"${r.url}\" loading=\"lazy\" alt=\"\">\n    <figcaption>score ${r.score}</figcaption>\n  </figure>`).join('');\n\nconst statusLine = !hasQuery\n  ? ''\n  : errorMsg\n    ? `<p class=\"error\">${errorMsg}</p>`\n    : results.length === 0\n      ? '<p>No matches.</p>'\n      : `<p>${results.length} matches for \"${escapeHtml(query)}\"</p>`;\n\nconst html = `<!doctype html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>VaultPi Photo Search</title>\n<style>\n  body { font-family: system-ui, sans-serif; background: #111; color: #eee; margin: 0; padding: 1rem; }\n  form { display: flex; gap: 0.5rem; margin-bottom: 1rem; }\n  input[type=text] { flex: 1; padding: 0.6rem; font-size: 1rem; border-radius: 6px; border: 1px solid #444; background: #222; color: #eee; }\n  button { padding: 0.6rem 1rem; font-size: 1rem; border-radius: 6px; border: none; background: #4a7; color: #111; }\n  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem; }\n  figure { margin: 0; background: #1a1a1a; border-radius: 8px; overflow: hidden; }\n  figure img { width: 100%; height: 150px; object-fit: cover; display: block; }\n  figcaption { font-size: 0.75rem; color: #aaa; padding: 0.25rem 0.5rem; }\n  .error { color: #f66; }\n</style>\n</head>\n<body>\n  <form method=\"GET\">\n    <input type=\"text\" name=\"q\" placeholder=\"search photos...\" value=\"${escapeHtml(query)}\">\n    <button type=\"submit\">Search</button>\n  </form>\n  ${statusLine}\n  <div class=\"grid\">${cards}</div>\n</body>\n</html>`;\n\nreturn [{ json: { html } }];"
+      },
+      "id": "1d81703f-da9a-43cb-baaa-462e88ccb3f4",
+      "name": "Build HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "9c8b1a2d-6e4f-4a3b-9c1d-2e5f6a7b8c9d",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Query": {
+      "main": [
+        [
+          {
+            "node": "Has Query?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Query?": {
+      "main": [
+        [
+          {
+            "node": "Search + Presign",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search + Presign": {
+      "main": [
+        [
+          {
+            "node": "Build HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build HTML": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false
+}
