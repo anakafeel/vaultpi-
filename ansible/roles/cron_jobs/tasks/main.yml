@@ -1,8 +1,22 @@
 ---
-# Only the two weekly jobs are managed here. The pre-existing @reboot
-# entries in this user's crontab are left alone - out of scope for this
-# retrofit, and ansible.builtin.cron only ever touches entries tagged with
-# a matching "name" comment, so it can't disturb them either way.
+# The pre-existing @reboot entries in this user's crontab are left alone -
+# out of scope for this retrofit, and ansible.builtin.cron only ever
+# touches entries tagged with a matching "name" comment, so it can't
+# disturb them either way.
+#
+# sync_photos.sh was deployed by the scripts role but never actually
+# scheduled anywhere (no cron entry, no systemd timer) - it had only ever
+# been run by hand. Nightly, ahead of the Sunday 3am/4am maintenance jobs,
+# so a slow rclone run never overlaps with docker prune or the config
+# backup.
+- name: Ensure the nightly photo sync job is scheduled
+  ansible.builtin.cron:
+    name: "vaultpi photo sync"
+    hour: "2"
+    minute: "0"
+    job: "{{ vaultpi_dir }}/sync_photos.sh"
+    user: "{{ vaultpi_user }}"
+
 - name: Ensure the Sunday 3am docker prune job is scheduled
   ansible.builtin.cron:
     name: "vaultpi docker prune and notify"
