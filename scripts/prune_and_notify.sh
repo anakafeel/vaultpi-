@@ -12,12 +12,26 @@ MAX_LOG_LINES=1000
 mkdir -p "$LOG_DIR"
 
 TS="$(date '+%Y-%m-%d %H:%M:%S %Z')"
-DF_BEFORE="$(df -h / | awk 'NR==2{print $4" free ("$5" used)"}')"
+
+# All three disks that actually matter here, not just the boot SD card -
+# the prune below affects /mnt/docker-root specifically (Docker's
+# data-root), not /, so checking only / never actually showed this
+# command's own effect. This is a human-readable weekly supplement; the
+# real-time safety net is the Grafana alert rules in
+# pi-configs/monitoring/grafana/provisioning/alerting/rules.yml.
+disk_summary() {
+  df -h / /mnt/docker-root /mnt/vaultpi-hdd | awk '
+    NR==1 { next }
+    { printf "%-16s %s free (%s used)\n", $NF, $4, $5 }
+  '
+}
+
+DF_BEFORE="$(disk_summary)"
 
 PRUNE_OUTPUT="$(docker system prune -af --volumes=false 2>&1)"
 PRUNE_EXIT=$?
 
-DF_AFTER="$(df -h / | awk 'NR==2{print $4" free ("$5" used)"}')"
+DF_AFTER="$(disk_summary)"
 
 RECLAIMED="$(printf '%s\n' "$PRUNE_OUTPUT" | grep -i "Total reclaimed space" | tail -1)"
 if [ -z "$RECLAIMED" ]; then
@@ -28,8 +42,10 @@ fi
   echo "=== $TS (exit $PRUNE_EXIT) ==="
   printf '%s\n' "$PRUNE_OUTPUT"
   echo "$RECLAIMED"
-  echo "Disk before: $DF_BEFORE"
-  echo "Disk after:  $DF_AFTER"
+  echo "Disk before:"
+  printf '%s\n' "$DF_BEFORE" | sed 's/^/  /'
+  echo "Disk after:"
+  printf '%s\n' "$DF_AFTER" | sed 's/^/  /'
   echo
 } >> "$LOG_FILE"
 
@@ -41,7 +57,11 @@ if [ -f "$WEBHOOK_FILE" ]; then
   WEBHOOK_URL="$(cat "$WEBHOOK_FILE")"
   DISCORD_MSG="VaultPi weekly Docker prune - $TS
 $RECLAIMED
-Disk: $DF_BEFORE -> $DF_AFTER"
+
+Disk before:
+$DF_BEFORE
+Disk after:
+$DF_AFTER"
 
   PAYLOAD="$(python3 -c '
 import json, sys
