@@ -36,3 +36,8 @@ vault_immich_admin_password: "changeme"
 # own owner-setup API.
 vault_n8n_owner_email: "changeme@example.com"
 vault_n8n_owner_password: "changeme"
+
+# Shared secret the Quarantine Duplicate webhook requires (as a ?token=
+# query param) before it will move/delete anything. Generate with e.g.
+# `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`.
+vault_n8n_quarantine_token: "changeme"

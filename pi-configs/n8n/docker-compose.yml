@@ -17,6 +17,11 @@ services:
       # (DHCP lease renewal, router reset). LAN-only access is enforced at
       # the firewall (ufw) instead - see ansible/roles/n8n.
       - "5678:5678"
+    # VAULTPI_QUARANTINE_TOKEN (the Quarantine Duplicate webhook's shared
+    # secret) lives here, templated from vault - same pattern as
+    # watchtower/samba/monitoring's .env files (see ansible/roles/n8n).
+    env_file:
+      - .env
     environment:
       # mDNS hostname instead of the literal IP - anakafeel-pi.local
       # resolves via avahi-daemon (ansible/roles/avahi) and survives DHCP
@@ -28,6 +33,10 @@ services:
       - WEBHOOK_URL=http://anakafeel-pi.local:5678/
       - GENERIC_TIMEZONE=UTC
       - TZ=UTC
+      # Explicit, not relied-on-as-default: the quarantine/duplicate-review
+      # workflows' Code nodes read VAULTPI_QUARANTINE_TOKEN via $env, which
+      # requires env access from Code nodes to be allowed.
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     volumes:
       - n8n_data:/home/node/.n8n
       # Read-only: lets Execute Command nodes run the existing photo-search
