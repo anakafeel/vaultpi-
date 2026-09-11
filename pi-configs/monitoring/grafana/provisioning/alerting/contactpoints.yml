@@ -1,0 +1,16 @@
+apiVersion: 1
+
+# Reuses the same Discord webhook prune_and_notify.sh and Watchtower already
+# notify through (see ansible/roles/monitoring/templates/.env.j2) - no new
+# notification path stood up for this.
+contactPoints:
+  - orgId: 1
+    name: discord-disk-alerts
+    receivers:
+      - uid: discord-disk-alerts-receiver
+        type: discord
+        settings:
+          url: ${DISCORD_WEBHOOK_URL}
+          use_discord_username: false
+          title: "VaultPi disk alert"
+        disableResolveMessage: false

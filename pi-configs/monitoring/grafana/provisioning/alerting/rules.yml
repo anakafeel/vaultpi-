@@ -1,0 +1,119 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Disk Usage Alerts
+    folder: VaultPi Alerts
+    interval: 1m
+    rules:
+      # /mnt/docker-root: dedicated SD card holding every Docker image/
+      # container layer - if it fills, every container on the Pi stops
+      # being manageable at once. `for: 0s` deliberately, not the usual
+      # debounce window - this one is already past 85% at the time this
+      # was written, so it should fire on the very first evaluation as a
+      # real test that the alert pipeline actually works end to end.
+      - uid: docker-root-disk-usage-85
+        title: "docker-root disk usage > 85%"
+        condition: threshold
+        data:
+          - refId: query
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: query
+              instant: true
+              expr: >-
+                100 - (node_filesystem_avail_bytes{mountpoint="/mnt/docker-root"}
+                / node_filesystem_size_bytes{mountpoint="/mnt/docker-root"} * 100)
+          - refId: threshold
+            datasourceUid: "__expr__"
+            model:
+              refId: threshold
+              type: threshold
+              expression: query
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [85]
+        noDataState: NoData
+        execErrState: Alerting
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "/mnt/docker-root is over 85% full - every container on the Pi depends on this disk."
+
+      # /mnt/vaultpi-hdd: the main photo/media store. Plenty of headroom
+      # today (~38% used) but this is exactly the alert that didn't exist
+      # for the SD card before it silently filled - it should exist before
+      # it's needed, not after.
+      - uid: vaultpi-hdd-disk-usage-90
+        title: "vaultpi-hdd disk usage > 90%"
+        condition: threshold
+        data:
+          - refId: query
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: query
+              instant: true
+              expr: >-
+                100 - (node_filesystem_avail_bytes{mountpoint="/mnt/vaultpi-hdd"}
+                / node_filesystem_size_bytes{mountpoint="/mnt/vaultpi-hdd"} * 100)
+          - refId: threshold
+            datasourceUid: "__expr__"
+            model:
+              refId: threshold
+              type: threshold
+              expression: query
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [90]
+        noDataState: NoData
+        execErrState: Alerting
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "/mnt/vaultpi-hdd is over 90% full."
+
+      # Boot SD card (/). Already the one disk prune_and_notify.sh checks,
+      # but only as a weekly, unconditional Discord line - this is the
+      # real-time equivalent.
+      - uid: root-disk-usage-85
+        title: "root (SD card) disk usage > 85%"
+        condition: threshold
+        data:
+          - refId: query
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: query
+              instant: true
+              expr: >-
+                100 - (node_filesystem_avail_bytes{mountpoint="/"}
+                / node_filesystem_size_bytes{mountpoint="/"} * 100)
+          - refId: threshold
+            datasourceUid: "__expr__"
+            model:
+              refId: threshold
+              type: threshold
+              expression: query
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [85]
+        noDataState: NoData
+        execErrState: Alerting
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Root filesystem (boot SD card) is over 85% full."
