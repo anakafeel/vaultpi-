@@ -8,5 +8,9 @@ resource "aws_dynamodb_table" "vaultpi_file_metadata" {
     type = "S"
   }
 
-  deletion_protection_enabled = false
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  deletion_protection_enabled = true
 }

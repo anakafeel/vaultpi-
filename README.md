@@ -65,7 +65,7 @@ Photos live locally-first on the HDD via Samba (fast, private, no recurring cost
 | 2 — Cloud sync pipeline (rclone, scheduled) | Done |
 | 3 — AI processing layer (Lambda: Rekognition + Bedrock) | Done |
 | 4 — Metadata & smart search (DynamoDB, dedup, text search) | Done |
-| 5 — Cold storage & backup/DR | Partial — weekly Pi config backup done; S3 → Glacier lifecycle rule not yet configured |
+| 5 — Cold storage & backup/DR | Partial — weekly Pi config backup done, DynamoDB PITR + deletion protection enabled; S3 → Glacier lifecycle rule not yet configured |
 | 6 — Dashboard & polish | Not started |
 | 7 — Terraform (infra as code) | Not started (scaffolded only) |
 | 8 — Ansible (config management) | Not started (scaffolded only) |
