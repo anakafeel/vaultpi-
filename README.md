@@ -54,23 +54,6 @@ Weekly: docker-compose configs + n8n volume --> S3 (pi-config-backup/)
 - **Samba never touches the public tunnel.** The Pi is already internet-facing (Cloudflare Tunnel, for the website) — file-sharing stays strictly LAN-only instead of reusing that path.
 - **Hybrid storage tiering.** Files stay local on the HDD first (fast, private, free), then sync to S3 for AI processing and offsite backup, with a Glacier lifecycle rule planned for cold data.
 
-## Current status
-
-| Milestone | Status |
-|---|---|
-| 0 — Foundation & safety rails (IAM, budget, S3 bucket) | Done |
-| 1 — Local NAS layer (Samba + HDD, LAN-only) | Done |
-| 2 — Cloud sync pipeline (rclone, scheduled) | Done |
-| 3 — AI processing layer (Lambda: Rekognition + Bedrock) | Done |
-| 4 — Metadata & smart search (DynamoDB, dedup, text search) | Done |
-| 5 — Cold storage & backup/DR | Partial — weekly Pi config backup + DynamoDB PITR/deletion protection done; S3 → Glacier lifecycle not yet configured |
-| 6 — Dashboard & polish (Prometheus + Grafana, Discord alerts) | Done |
-| 7 — Terraform (infra as code) | Done |
-| 8 — Ansible (config management) | Done |
-| 9 — Immich (photo library UI + mobile upload) | Done |
-| 10 — Tailscale (secure remote access) | Done |
-| 11 — n8n Photo Search & Duplicate Review UI (+ quarantine) | Done |
-
 ## How to use it
 
 Connect first, either way:
