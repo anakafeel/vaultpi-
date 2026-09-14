@@ -66,9 +66,59 @@ Photos live locally-first on the HDD via Samba (fast, private, no recurring cost
 | 3 — AI processing layer (Lambda: Rekognition + Bedrock) | Done |
 | 4 — Metadata & smart search (DynamoDB, dedup, text search) | Done |
 | 5 — Cold storage & backup/DR | Partial — weekly Pi config backup done, DynamoDB PITR + deletion protection enabled; S3 → Glacier lifecycle rule not yet configured |
-| 6 — Dashboard & polish | Not started |
-| 7 — Terraform (infra as code) | Not started (scaffolded only) |
-| 8 — Ansible (config management) | Not started (scaffolded only) |
+| 6 — Dashboard & polish (Prometheus + Grafana, disk alerts via Discord) | Done |
+| 7 — Terraform (infra as code) | Done |
+| 8 — Ansible (config management) | Done |
+| 9 — Immich (photo library UI + mobile upload) | Done |
+| 10 — Tailscale (secure remote access) | Done |
+| 11 — n8n Photo Search & Duplicate Review UI (+ quarantine) | Done |
+
+## How to use VaultPi
+
+Everything below assumes you're already on the same network as the Pi — either physically (same LAN/Wi-Fi) or via Tailscale. This is functional webhook-based tooling built for one person's use, not a polished consumer app — see the honest caveats at the end before expecting App Store-level polish.
+
+### Connecting
+
+- **On the LAN:** the Pi answers to `anakafeel-pi.local` (mDNS, via avahi — survives DHCP renewals and router resets, so it's the address used everywhere below).
+- **Remotely, via Tailscale:** install the Tailscale app (desktop or mobile) and log in with the account that's on this tailnet. Once connected, the Pi is reachable at its tailnet address (`100.68.237.12`) exactly as if you were on the LAN — same ports, same URLs, just swap the hostname.
+
+### Immich — browsing the photo library / mobile upload
+
+- **App:** the official Immich app (iOS/Android), or just a browser.
+- **Server URL:** `http://100.68.237.12:2283` (Tailscale) or `http://anakafeel-pi.local:2283` (LAN).
+- **What it's for:** browsing the existing ~14,800-photo library in place (it reads the HDD's folders directly as read-only external libraries, nothing is copied), or uploading new phone photos into VaultPi's own managed storage. Immich's built-in AI features (smart search, facial recognition) are deliberately switched off — VaultPi already has its own Bedrock-based tagging/embedding/dedup pipeline, so Immich here is the human-friendly viewer/uploader layer, not the "smart" layer.
+
+![Immich photo timeline](docs/screenshots/immich-timeline.jpg)
+
+### Photo Search — natural-language photo search
+
+- **URL:** `http://anakafeel-pi.local:5678/webhook/photo-search` (or the Tailscale host on port 5678).
+- **How it works:** type a plain-English description of what you're looking for ("birthday cake", "dog at the beach") and hit Search. Your query gets embedded with the same Bedrock Titan model used for every photo, compared against the cached embedding table, and the closest matches come back as thumbnails with similarity scores.
+- **Speed:** the embedding table is cached on disk and refreshed every 6 hours. A query that lands on a stale cache takes ~55-60s (it has to re-scan all ~14,800 DynamoDB items first); anything after that in the same window comes back in a few seconds.
+- **Tip:** bookmark it to your phone's home screen (Share → Add to Home Screen on iOS, or the browser menu's equivalent on Android) — it opens full-screen without browser chrome, so it behaves like a lightweight standalone app.
+
+![Photo Search results for "birthday cake"](docs/screenshots/photo-search.jpg)
+
+### Duplicate Review — near-duplicate cleanup
+
+- **URL:** `http://anakafeel-pi.local:5678/webhook/duplicate-review` (or the Tailscale host on port 5678).
+- **How pagination works:** loads 10 near-duplicate pairs at a time (found via cosine similarity across every stored embedding), with `← Previous` / `Next →` links that just adjust an `?offset=` query param.
+- **How quarantine works:** each photo has a "Quarantine this one" button that moves that specific file into `_quarantine/` on the HDD and deletes its S3 copy. As of the security fix requiring a shared-secret token on that webhook, the button already knows the token and attaches it automatically — there's nothing to configure or remember, just click the side you want to remove.
+
+![Duplicate Review with a blurred pair](docs/screenshots/duplicate-review.jpg)
+
+*(The photos in that screenshot are blurred on purpose — these are real near-duplicate pairs from a personal photo library, most of which show identifiable family photos. The UI itself, the scores, and the buttons are all real and unedited.)*
+
+### Grafana — VaultPi Overview dashboard
+
+- **URL:** `http://anakafeel-pi.local:3001` (or the Tailscale host on port 3001). Requires logging in with the Grafana account set up during provisioning.
+- Shows CPU/RAM/disk usage for the Pi as a whole and per-container, plus AWS-side metrics pulled from CloudWatch (Lambda invocations/errors, DynamoDB consumed capacity, S3 bucket size trend). Disk-usage alerts fire to Discord automatically before a mount fills up, rather than being discovered after the fact.
+
+![Grafana VaultPi Overview dashboard](docs/screenshots/grafana-dashboard.jpg)
+
+### Honest expectations
+
+This is hand-rolled webhook tooling, not a shipped product: Photo Search and Duplicate Review are unauthenticated plain-HTML pages whose actual security boundary is "you have to be on the LAN or the tailnet to reach them" — there's no login screen because the network is the login screen. There's no offline support, no mobile-native anything (beyond home-screen bookmarking), and if an n8n workflow fails partway through (a restart mid-scan, a bad path), you'll get a blank or broken page rather than a friendly error message. What it does do well: search results are genuinely useful, dedup finds real duplicates instead of false positives, and quarantine plus the existing S3 backup means a wrong click is recoverable, not catastrophic. Judge it as a working personal tool, not a consumer app.
 
 ## Lessons learned
 
@@ -84,4 +134,6 @@ Photos live locally-first on the HDD via Samba (fast, private, no recurring cost
 - `scripts/` — sync, AI backfill, dedup, search, and backup/maintenance scripts that run on the Pi
 - `config/` — non-secret config used by the scripts (e.g. the list of photo source folders)
 - `lambda/process_upload/` — the S3-triggered Lambda that tags and embeds each new photo
-- `terraform/`, `ansible/` — reserved for later infra-as-code and config-management milestones
+- `terraform/` — infra as code for the AWS side (IAM, S3, DynamoDB, Lambda)
+- `ansible/` — config management for the Pi (Docker, HDD mount, Samba, n8n, Immich, Tailscale, monitoring, cron jobs)
+- `docs/screenshots/` — real screenshots of the running system, referenced from the usage section above
