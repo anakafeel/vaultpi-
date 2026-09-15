@@ -31,6 +31,7 @@
     - { name: backfill_embeddings.py, mode: "0664" }
     - { name: find_duplicates.py, mode: "0644" }
     - { name: search_photos.py, mode: "0644" }
+    - { name: generate_presigned_url.py, mode: "0644" }
     - { name: quarantine_file.py, mode: "0644" }
     - { name: backup_pi_config.sh, mode: "0755" }
     # Restrictive on purpose - reads the Discord webhook file.
