@@ -18,6 +18,12 @@
   <img alt="Tailscale" src="https://img.shields.io/badge/Tailscale-242424?logo=tailscale&logoColor=white">
 </p>
 
+<p align="center">
+  <a href=".github/assets/vaultpi-demo.mp4"><img src=".github/assets/vaultpi-demo.jpg" alt="VaultPi demo video: click to play" width="85%"></a>
+  <br>
+  <sub>▶ Click the thumbnail to watch the demo video.</sub>
+</p>
+
 # VaultPi
 
 **A self-hosted NAS and AI photo pipeline on a Raspberry Pi 4 and AWS, provisioned end to end with Ansible and Terraform.**
