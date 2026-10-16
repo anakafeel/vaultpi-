@@ -27,7 +27,7 @@ log() {
 log "=== Config backup started ==="
 
 # --- 1. Tar up docker-compose.yml directories (configs only, no volume data) ---
-if tar -czf "$COMPOSE_ARCHIVE" -C "$HOME" watchtower n8n vaultpi/samba 2>>"$LOG_FILE"; then
+if tar -czf "$COMPOSE_ARCHIVE" -C "$HOME" n8n vaultpi/samba 2>>"$LOG_FILE"; then
   SIZE=$(stat -c%s "$COMPOSE_ARCHIVE" 2>/dev/null || echo 0)
   if [ "$SIZE" -gt 0 ]; then
     log "Compose config archive created: $COMPOSE_ARCHIVE ($SIZE bytes)"
