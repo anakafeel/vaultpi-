@@ -12,9 +12,8 @@ vault_samba_password: changeme
 
 # The Discord webhook URL AWS's console/Discord gives you looks like:
 #   https://discord.com/api/webhooks/<id>/<token>
-# Split into id/token here since both prune_and_notify.sh (raw https URL)
-# and Watchtower (shoutrrr's discord://token@id scheme) need the same
-# secret in two different formats - one source of truth, two templates.
+# Split into id/token; prune_and_notify.sh and Grafana build the URL
+# from both parts.
 vault_discord_webhook_id: "000000000000000000"
 vault_discord_webhook_token: "changeme"
 

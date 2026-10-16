@@ -19,7 +19,7 @@ services:
       - "5678:5678"
     # VAULTPI_QUARANTINE_TOKEN (the Quarantine Duplicate webhook's shared
     # secret) lives here, templated from vault - same pattern as
-    # watchtower/samba/monitoring's .env files (see ansible/roles/n8n).
+    # samba/monitoring's .env files (see ansible/roles/n8n).
     env_file:
       - .env
     environment:

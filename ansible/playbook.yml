@@ -18,7 +18,6 @@
     # the docker compose plugin (docker) already in place.
     - immich
     - n8n
-    - watchtower
     - samba
     - monitoring
     - scripts

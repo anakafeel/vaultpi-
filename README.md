@@ -117,7 +117,7 @@ Everything below is what the code in this repo actually does.
 - **Network exposure.** No service is intended for the public internet. Immich (2283) and n8n (5678) get `ufw` rules from the playbook: allow from the LAN subnet and the Tailscale CGNAT range (`100.64.0.0/10`), then deny from everywhere else. Samba (445) is LAN-only by design and is never routed through any tunnel. Remote access is via Tailscale, installed by the `tailscale` role.
 - **Authenticated writes.** The n8n quarantine webhook (which moves and deletes files) requires a `?token=` secret from the vault. Photo Search and Duplicate Review are plain HTML with no login: "on the LAN or tailnet" is their auth model.
 - **AWS side.** The S3 bucket blocks all public access and uses AES256 server-side encryption. DynamoDB has point-in-time recovery and deletion protection. Grafana reads CloudWatch through a dedicated read-only IAM user.
-- **Container hygiene.** Everything runs in Docker for isolation and reproducibility; Immich's external libraries are mounted read-only; Watchtower keeps images updated and reports to Discord.
+- **Container hygiene.** Everything runs in Docker for isolation and reproducibility; Immich's external libraries are mounted read-only. Image updates are deliberate: Watchtower was retired, and services are moving to a GitOps k3s setup where Renovate opens update PRs that are merged by hand.
 - **Known limitations.** The Lambda role uses broad AWS managed policies (S3 read-only, DynamoDB/Rekognition/Bedrock full access), which should be scoped down. Grafana (3001), Prometheus (9090), cAdvisor (8080) and node_exporter (9100) are published by Docker without ufw rules in this repo, and Docker-published ports can bypass ufw, so they rely on the home network boundary.
 - **Cloudflare Tunnel.** The author's personal website reaches the internet through a Cloudflare Tunnel on the same Pi. That tunnel is configured outside this repo, and nothing here routes through it.
 
@@ -131,7 +131,6 @@ Everything below is what the code in this repo actually does.
 | Grafana | VaultPi Overview dashboard, alert rules, CloudWatch datasource | 3001 | published by Docker, login required |
 | Prometheus | Metrics store | 9090 | published by Docker |
 | node_exporter, cAdvisor | Host and per-container metrics | 9100, 8080 | published by Docker |
-| Watchtower | Container image updates, Discord notifications | none | internal |
 | Avahi | `anakafeel-pi.local` mDNS name | mDNS | LAN |
 | Tailscale | Remote access to the above | n/a | tailnet |
 
@@ -187,11 +186,11 @@ Connect first, either way:
 ```
 .
 ├── ansible/                 playbook.yml, inventory.ini, ansible.cfg, group_vars/, vault_vars.yml (encrypted)
-│   └── roles/               avahi, tailscale, hdd_mount, docker, immich, n8n, watchtower,
-│                            samba, monitoring, scripts, cron_jobs
+│   └── roles/               avahi, tailscale, hdd_mount, docker, immich, n8n, samba,
+│                            monitoring, scripts, cron_jobs
 ├── terraform/               S3, DynamoDB, Lambda, IAM (variables.tf, outputs.tf, ...)
 ├── lambda/process_upload/   S3-triggered Lambda: Rekognition + Bedrock Titan -> DynamoDB
-├── pi-configs/              docker-compose per service: immich, n8n, samba, monitoring, watchtower
+├── pi-configs/              docker-compose per service: immich, n8n, samba, monitoring
 ├── scripts/                 sync, backfill, dedup, search, quarantine, presign, backup, prune
 ├── config/photo_sources.txt folders under the HDD that sync_photos.sh uploads
 └── docs/screenshots/        real screenshots of the running system
@@ -235,7 +234,7 @@ ansible-playbook playbook.yml --syntax-check
 ansible-playbook playbook.yml
 ```
 
-Roles run in this order: `avahi`, `tailscale`, `hdd_mount`, `docker`, `immich`, `n8n`, `watchtower`, `samba`, `monitoring`, `scripts`, `cron_jobs`. `hdd_mount` precedes `docker` on purpose, so Docker's first start uses the dedicated data-root mount.
+Roles run in this order: `avahi`, `tailscale`, `hdd_mount`, `docker`, `immich`, `n8n`, `samba`, `monitoring`, `scripts`, `cron_jobs`. `hdd_mount` precedes `docker` on purpose, so Docker's first start uses the dedicated data-root mount.
 
 **6. Authenticate Tailscale (one-time, manual).** The role installs Tailscale but deliberately does not automate login:
 
