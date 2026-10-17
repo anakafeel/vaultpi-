@@ -118,7 +118,7 @@ Everything below is what the code in this repo actually does.
 - **Authenticated writes.** The n8n quarantine webhook (which moves and deletes files) requires a `?token=` secret from the vault. Photo Search and Duplicate Review are plain HTML with no login: "on the LAN or tailnet" is their auth model.
 - **AWS side.** The S3 bucket blocks all public access and uses AES256 server-side encryption. DynamoDB has point-in-time recovery and deletion protection. Grafana reads CloudWatch through a dedicated read-only IAM user.
 - **Container hygiene.** Everything runs in Docker for isolation and reproducibility; Immich's external libraries are mounted read-only. Image updates are deliberate: Watchtower was retired, and services are moving to a GitOps k3s setup where Renovate opens update PRs that are merged by hand.
-- **Known limitations.** The Lambda role uses broad AWS managed policies (S3 read-only, DynamoDB/Rekognition/Bedrock full access), which should be scoped down. Grafana (3001), Prometheus (9090), cAdvisor (8080) and node_exporter (9100) are published by Docker without ufw rules in this repo, and Docker-published ports can bypass ufw, so they rely on the home network boundary.
+- **Known limitations.** The Lambda role uses broad AWS managed policies (S3 read-only, DynamoDB/Rekognition/Bedrock full access), which should be scoped down. cAdvisor (8080) is published by Docker without a ufw rule in this repo, and Docker-published ports can bypass ufw, so it relies on the home network boundary.
 - **Cloudflare Tunnel.** The author's personal website reaches the internet through a Cloudflare Tunnel on the same Pi. That tunnel is configured outside this repo, and nothing here routes through it.
 
 ## Services
@@ -128,9 +128,7 @@ Everything below is what the code in this repo actually does.
 | Samba (`dperson/samba`) | SMB share of the HDD | 445 | LAN only |
 | Immich | Photo library UI and phone upload (built-in AI disabled; Bedrock does that) | 2283 | ufw: LAN + Tailscale |
 | n8n (custom image, pinned 1.106.3) | Photo Search and Duplicate Review webhooks, quarantine workflow | 5678 | ufw: LAN + Tailscale |
-| Grafana | VaultPi Overview dashboard, alert rules, CloudWatch datasource | 3001 | published by Docker, login required |
-| Prometheus | Metrics store | 9090 | published by Docker |
-| node_exporter, cAdvisor | Host and per-container metrics | 9100, 8080 | published by Docker |
+| cAdvisor | Per-container metrics, scraped by Prometheus on the k3s cluster ([homelab-gitops](https://github.com/anakafeel/homelab-gitops), `infra/monitoring`) | 8080 | published by Docker |
 | Avahi | `anakafeel-pi.local` mDNS name | mDNS | LAN |
 | Tailscale | Remote access to the above | n/a | tailnet |
 
@@ -164,7 +162,7 @@ Connect first, either way:
 *(Photos blurred on purpose — real near-duplicate pairs, mostly identifiable family photos. UI, scores, and buttons are real and unedited.)*
 
 **Grafana** — VaultPi Overview dashboard
-- `http://anakafeel-pi.local:3001` — login required.
+- Runs on the k3s cluster ([homelab-gitops](https://github.com/anakafeel/homelab-gitops), `infra/monitoring`), reached over Tailscale; login required.
 - Pi + per-container CPU/RAM/disk, plus CloudWatch metrics (Lambda, DynamoDB, S3). Disk alerts fire to Discord before a mount fills up.
 
 ![Grafana VaultPi Overview dashboard](docs/screenshots/grafana-dashboard.jpg)
@@ -222,7 +220,7 @@ ansible-vault encrypt vault_vars.yml
 echo '<vault password>' > ~/.vaultpi-vault-pass && chmod 600 ~/.vaultpi-vault-pass
 ```
 
-Required keys: Samba user/password, Discord webhook id/token, Grafana CloudWatch access key pair, Immich DB password and admin credentials, n8n owner credentials, and the quarantine webhook token.
+Required keys: Samba user/password, Discord webhook id/token, Immich DB password and admin credentials, n8n owner credentials, and the quarantine webhook token.
 
 **4. Inventory and variables.** Point `ansible/inventory.ini` (group `[vaultpi]`) at your Pi, and edit `ansible/group_vars/all.yml`: `hdd_uuid`, `docker_root_uuid`, `lan_subnet`, `vaultpi_user`/paths, and `immich_external_library_folders`. Match `config/photo_sources.txt` to your HDD folders.
 
@@ -255,7 +253,7 @@ sudo tailscale up --hostname=anakafeel-pi
 - **Backups.** Photos are protected by the S3 sync; Pi configuration and n8n workflows by the weekly config backup. The Pi remains a single point of failure by design.
 - **Deduplication.** `find_duplicates.py` scans embeddings and writes a report of pairs with cosine similarity of at least 0.95. Review them in the n8n Duplicate Review page; `quarantine_file.py` moves the chosen file to `_quarantine/` on the HDD and deletes its S3 copy, logging each action.
 - **Backfill.** `backfill_embeddings.py` processes existing S3 photos with a checkpoint file and 4 workers, resizing to the 2048px Titan limit.
-- **Monitoring.** Grafana alert rules fire when docker-root or root disk exceeds 85% or the HDD exceeds 90%, notifying Discord. `hdd_mount` also installs a boot-time check so Docker does not start until the real HDD is mounted.
+- **Monitoring.** Prometheus and Grafana run on the k3s cluster ([homelab-gitops](https://github.com/anakafeel/homelab-gitops), `infra/monitoring`). Alertmanager notifies Discord when a disk passes 85% (warning) or 95% (critical). `hdd_mount` also installs a boot-time check so Docker does not start until the real HDD is mounted.
 - **Presigned links.** `generate_presigned_url.py` creates 1-hour links for viewing search and dedup results.
 
 ## Roadmap

@@ -12,13 +12,11 @@ vault_samba_password: changeme
 
 # The Discord webhook URL AWS's console/Discord gives you looks like:
 #   https://discord.com/api/webhooks/<id>/<token>
-# Split into id/token; prune_and_notify.sh and Grafana build the URL
+# Split into id/token; prune_and_notify.sh builds the URL
 # from both parts.
 vault_discord_webhook_id: "000000000000000000"
 vault_discord_webhook_token: "changeme"
 
-vault_grafana_cloudwatch_access_key_id: "AKIAEXAMPLE00000000"
-vault_grafana_cloudwatch_secret_access_key: "changeme"
 
 # Postgres role password Immich's database was actually initialized with.
 # Changing this after the fact does NOT rotate it - Postgres only applies

@@ -1,4 +1,6 @@
 ---
+# Prometheus, Grafana and node-exporter run on k3s now (homelab-gitops repo).
+# This role only keeps the cAdvisor container that the cluster scrapes.
 - name: Ensure ~/vaultpi/monitoring exists
   ansible.builtin.file:
     path: "{{ vaultpi_dir }}/monitoring"
@@ -13,37 +15,20 @@
     owner: "{{ vaultpi_user }}"
     mode: "0644"
 
-- name: Deploy Prometheus and Grafana provisioning config (whole tree, source of truth is pi-configs/monitoring/)
-  ansible.builtin.copy:
-    src: "{{ item }}"
-    dest: "{{ vaultpi_dir }}/monitoring/"
-    owner: "{{ vaultpi_user }}"
-    mode: preserve
-  loop:
-    - "{{ repo_root }}/pi-configs/monitoring/prometheus"
-    - "{{ repo_root }}/pi-configs/monitoring/grafana"
-
-- name: Template monitoring's .env (Grafana's CloudWatch IAM credentials, from vault)
-  ansible.builtin.template:
-    src: .env.j2
-    dest: "{{ vaultpi_dir }}/monitoring/.env"
-    owner: "{{ vaultpi_user }}"
-    mode: "0600"
-
-# Prometheus/Grafana's growing data must live on the HDD, never the SD
-# card - the whole point of Milestone 6's setup. World-writable to match
-# the HDD mount's existing permissive mode (it's ntfs-3g with uid/gid
-# mount options, not real per-file POSIX permissions).
-- name: Ensure Prometheus and Grafana data directories exist on the HDD
+# Leftovers from the Docker Prometheus/Grafana. The .env held the CloudWatch
+# keys in plaintext; they now live in a SOPS Secret in the cluster. The old
+# data on the HDD (prometheus-data, grafana-data) is left alone on purpose.
+- name: Remove the old Prometheus/Grafana config and .env
   ansible.builtin.file:
-    path: "{{ hdd_mount_path }}/{{ item }}"
-    state: directory
-    mode: "0777"
+    path: "{{ vaultpi_dir }}/monitoring/{{ item }}"
+    state: absent
   loop:
-    - prometheus-data
-    - grafana-data
+    - .env
+    - prometheus
+    - grafana
 
-- name: Ensure the monitoring stack is up
+- name: Ensure the monitoring stack is up (removes the retired containers)
   community.docker.docker_compose_v2:
     project_src: "{{ vaultpi_dir }}/monitoring"
     state: present
+    remove_orphans: true

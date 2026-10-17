@@ -17,8 +17,8 @@ TS="$(date '+%Y-%m-%d %H:%M:%S %Z')"
 # the prune below affects /mnt/docker-root specifically (Docker's
 # data-root), not /, so checking only / never actually showed this
 # command's own effect. This is a human-readable weekly supplement; the
-# real-time safety net is the Grafana alert rules in
-# pi-configs/monitoring/grafana/provisioning/alerting/rules.yml.
+# real-time safety net is the DiskSpaceHigh/DiskSpaceCritical Prometheus
+# rules on the k3s cluster (homelab-gitops repo, infra/monitoring/rules.yaml).
 disk_summary() {
   df -h / /mnt/docker-root /mnt/vaultpi-hdd | awk '
     NR==1 { next }
