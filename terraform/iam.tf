@@ -80,4 +80,5 @@ resource "aws_iam_user_policy_attachment" "grafana_cloudwatch_readonly" {
 # The access key itself is intentionally NOT managed here - AWS never
 # returns a secret access key after creation, so importing it would leave
 # Terraform state with an unknown/unusable secret. The key already exists
-# and is in use by Grafana's .env file; it's tracked outside Terraform.
+# and is used by Grafana on the k3s cluster (SOPS Secret grafana-cloudwatch
+# in the homelab-gitops repo); it's tracked outside Terraform.
