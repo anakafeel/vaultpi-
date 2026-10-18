@@ -1,0 +1,41 @@
+---
+# k3s itself is installed by hand (get.k3s.io, data-dir /mnt/docker-root/k3s);
+# this role only manages its config. flannel's VXLAN runs on tailscale0 so pod
+# traffic reaches lab-node, the laptop VM agent (homelab-gitops
+# tofu/laptop-vms). A NAT on wlan0 instead broke the outer UDP checksums.
+- name: Ensure /etc/rancher/k3s exists
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    mode: "0755"
+
+- name: Deploy k3s server config
+  ansible.builtin.copy:
+    dest: /etc/rancher/k3s/config.yaml
+    content: |
+      node-external-ip: {{ k3s_tailnet_ip }}
+      flannel-external-ip: true
+      # VXLAN device on the tailnet, like lab-node: no NAT, valid checksums.
+      flannel-iface: tailscale0
+    mode: "0644"
+  notify: restart k3s
+
+- name: Ensure k3s drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/k3s.service.d
+    state: directory
+    mode: "0755"
+
+# Trade-off: k3s now needs Tailscale up to start. If tailscale0 isn't ready
+# yet, k3s exits and its Restart=always (5s) retries until it is.
+- name: Start k3s after tailscaled
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/k3s.service.d/tailscale.conf
+    content: |
+      # flannel-iface is tailscale0: start after tailscaled. If it is not up yet,
+      # k3s exits and Restart=always retries until it is.
+      [Unit]
+      After=tailscaled.service
+      Wants=tailscaled.service
+    mode: "0644"
+  notify: restart k3s

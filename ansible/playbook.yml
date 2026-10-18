@@ -19,6 +19,9 @@
     - immich
     - n8n
     - samba
+    # k3s_config after tailscale and hdd_mount: k3s needs tailscale0 and its
+    # data-dir on /mnt/docker-root.
+    - k3s_config
     - monitoring
     - scripts
     - cron_jobs

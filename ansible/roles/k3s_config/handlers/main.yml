@@ -1,0 +1,7 @@
+---
+# Restarting k3s blips the site and Grafana for ~30-60 s; running pods stay up.
+- name: restart k3s
+  ansible.builtin.systemd:
+    name: k3s
+    state: restarted
+    daemon_reload: true
