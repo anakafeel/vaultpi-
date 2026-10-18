@@ -33,6 +33,8 @@ n8n_port: 5678
 # in here, regardless of its physical network. Used to scope firewall rules
 # to "LAN or Tailscale" without listing individual tailnet IPs.
 tailscale_subnet: "100.64.0.0/10"
+# The Pi's own tailnet IP (stable per machine); k3s_config advertises it to flannel.
+k3s_tailnet_ip: "100.68.237.12"
 
 # Immich - all data lives on the HDD (see pi-configs/immich/.env.example for
 # why Postgres specifically uses a loopback ext4 image rather than the raw
