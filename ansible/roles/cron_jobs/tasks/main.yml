@@ -9,13 +9,14 @@
 # been run by hand. Nightly, ahead of the Sunday 3am/4am maintenance jobs,
 # so a slow rclone run never overlaps with docker prune or the config
 # backup.
-- name: Ensure the nightly photo sync job is scheduled
+#
+# 2026-10-24: the AWS side of the project is retired, so the S3 photo sync
+# and S3 config backup are now removed instead of scheduled.
+- name: Ensure the nightly photo sync job is absent
   ansible.builtin.cron:
     name: "vaultpi photo sync"
-    hour: "2"
-    minute: "0"
-    job: "{{ vaultpi_dir }}/sync_photos.sh"
     user: "{{ vaultpi_user }}"
+    state: absent
 
 - name: Ensure the Sunday 3am docker prune job is scheduled
   ansible.builtin.cron:
@@ -26,11 +27,8 @@
     job: "{{ vaultpi_dir }}/prune_and_notify.sh"
     user: "{{ vaultpi_user }}"
 
-- name: Ensure the Sunday 4am config backup job is scheduled
+- name: Ensure the Sunday 4am config backup job is absent
   ansible.builtin.cron:
     name: "vaultpi config backup"
-    weekday: "0"
-    hour: "4"
-    minute: "0"
-    job: "{{ vaultpi_dir }}/backup_pi_config.sh"
     user: "{{ vaultpi_user }}"
+    state: absent
